@@ -5,203 +5,195 @@
 
 import streamlit as st
 import os
-# pandas is not directly used for display logic here, but app_config may use it.
-from config import app_config # Uses the fully redesigned app_config
+from config import app_config # Uses the fully redesigned and finalized app_config
 import logging
 
 # --- Page Configuration (Reflects Sentinel system identity) ---
 # Ensure APP_LOGO_SMALL exists, or provide a valid character/emoji.
-page_icon_path = app_config.APP_LOGO_SMALL
-if not os.path.exists(page_icon_path):
-    page_icon_path = "🌍" # Fallback emoji if logo file not found
+# This should point to a file that will be present in your assets directory.
+page_icon_to_use = app_config.APP_LOGO_SMALL
+if not os.path.exists(page_icon_to_use): # Check if the configured path actually exists
+    logger.warning(f"Page icon logo not found at {page_icon_to_use}, using fallback emoji.")
+    page_icon_to_use = "🌍"
 
 st.set_page_config(
     page_title=f"{app_config.APP_NAME} - System Overview",
-    page_icon=page_icon_path,
+    page_icon=page_icon_to_use,
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
         'Get Help': f"mailto:{app_config.SUPPORT_CONTACT_INFO}?subject=Help Request - {app_config.APP_NAME}",
         'Report a bug': f"mailto:{app_config.SUPPORT_CONTACT_INFO}?subject=Bug Report - {app_config.APP_NAME} v{app_config.APP_VERSION}",
         'About': f"""
-        ### {app_config.APP_NAME}
-        **Version:** {app_config.APP_VERSION}
-
+        ### {app_config.APP_NAME} (v{app_config.APP_VERSION})
         An Edge-First Health Intelligence & Action Co-Pilot for LMIC Environments.
         {app_config.APP_FOOTER_TEXT}
 
-        This platform (Sentinel Health Co-Pilot) prioritizes offline-first operations,
-        actionable insights for frontline workers, and resilient data systems.
-        The web views demonstrated here primarily represent supervisor, clinic manager,
-        or District Health Officer (DHO) perspectives (typically at Facility or
-        Regional/Cloud Nodes). The primary interface for frontline health workers
-        is a native mobile/wearable application on their Personal Edge Device (PED),
-        which is designed for their specific high-stress, low-resource context.
+        **System Overview:**
+        The Sentinel Health Co-Pilot prioritizes offline-first operations via Personal Edge Devices (PEDs) for frontline workers, 
+        translating real-time sensor and contextual data into actionable guidance. 
+        Data is opportunistically synced to higher tiers for broader operational oversight and strategic planning.
+
+        **This Web Demonstrator:**
+        The views navigated from this page simulate web-based interfaces primarily intended for:
+        - **Supervisors (Tier 1 Hubs):** Team performance, escalated alerts.
+        - **Clinic Managers (Tier 2 Facility Nodes):** Operational efficiency, quality of care, resource management.
+        - **District Health Officers (DHOs @ Tier 2/3 Nodes):** Strategic oversight, population health insights.
+        - **Analysts (Tier 3 / Advanced Tier 2):** In-depth epidemiological research.
+
+        The actual PED interface for frontline workers is a specialized native application, not shown here.
         """
     }
 )
 
-# --- Logging Setup (Initialize once at the entry point of the app) ---
-# Note: If running individual pages directly, they might need their own logger setup or inherit.
-# Streamlit Cloud usually handles a basic logging config.
-logging.basicConfig(
-    level=getattr(logging, app_config.LOG_LEVEL.upper(), logging.INFO),
-    format=app_config.LOG_FORMAT,
-    datefmt=app_config.LOG_DATE_FORMAT,
-    handlers=[logging.StreamHandler()] # Ensure logs go to console/Streamlit log viewer
-)
-logger = logging.getLogger(__name__) # Logger for this main app_home page
+# --- Logging Setup ---
+# Configure logging once at the application's entry point.
+# This basicConfig should ideally not be repeated in sub-pages if they inherit the logger.
+if not logging.getLogger().hasHandlers(): # Avoid adding multiple handlers if app reloads
+    logging.basicConfig(
+        level=getattr(logging, app_config.LOG_LEVEL.upper(), logging.INFO),
+        format=app_config.LOG_FORMAT,
+        datefmt=app_config.LOG_DATE_FORMAT,
+        handlers=[logging.StreamHandler()] # Ensure output to Streamlit's log console
+    )
+logger = logging.getLogger(__name__)
 
 # --- CSS Loading (for Web Views - Tier 2/3) ---
-# This CSS is for the overall Streamlit app shell and components.
-@st.cache_resource # Use cache_resource for functions loading assets
-def load_sentinel_web_css(css_file_path: str):
-    if os.path.exists(css_file_path):
+@st.cache_resource # Cache the loading of CSS
+def load_sentinel_web_styling(css_file_path_web: str):
+    if os.path.exists(css_file_path_web):
         try:
-            with open(css_file_path, encoding="utf-8") as f:
+            with open(css_file_path_web, encoding="utf-8") as f:
                 st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
-            logger.info(f"Sentinel web CSS loaded successfully from {css_file_path}")
-        except Exception as e_css_load:
-            logger.error(f"Error reading Sentinel web CSS file {css_file_path}: {e_css_load}")
+            logger.info(f"Sentinel web styling loaded from {css_file_path_web}")
+        except Exception as e_css:
+            logger.error(f"Error reading Sentinel web CSS {css_file_path_web}: {e_css}")
     else:
-        logger.warning(f"Sentinel web CSS file not found: {css_file_path}. Default Streamlit styles will apply.")
+        logger.warning(f"Sentinel web CSS file not found: {css_file_path_web}. Default styles will be used.")
 
-load_sentinel_web_css(app_config.STYLE_CSS_PATH_WEB)
+load_sentinel_web_styling(app_config.STYLE_CSS_PATH_WEB)
 
 
 # --- App Header ---
-header_cols_app_home = st.columns([0.12, 0.88]) # Adjust ratio for logo size
-with header_cols_app_home[0]:
-    logo_to_display_main = app_config.APP_LOGO_LARGE
-    if not os.path.exists(logo_to_display_main): # Fallback to small if large isn't there
-        logo_to_display_main = app_config.APP_LOGO_SMALL
+header_cols = st.columns([0.10, 0.90]) # Adjusted for potentially different logo proportions
+with header_cols[0]:
+    # Prefer APP_LOGO_LARGE for the main landing page for more impact.
+    main_logo_path = app_config.APP_LOGO_LARGE
+    if not os.path.exists(main_logo_path): # Fallback to small logo if large one is missing
+        main_logo_path = app_config.APP_LOGO_SMALL
     
-    if os.path.exists(logo_to_display_main):
-        st.image(logo_to_display_main, width=110) # Consistent but slightly prominent width for main page logo
-    else:
-        st.markdown("🌍", unsafe_allow_html=True) # Fallback icon if no logos
-
-with header_cols_app_home[1]:
+    if os.path.exists(main_logo_path):
+        st.image(main_logo_path, width=90) # Adjusted width for a prominent but not overwhelming logo
+    else: # Ultimate fallback if no image files found
+        logger.warning(f"Main page logo(s) not found at {app_config.APP_LOGO_LARGE} or {app_config.APP_LOGO_SMALL}. Using icon.")
+        st.markdown("🌍", unsafe_allow_html=True)
+      
+with header_cols[1]:
     st.title(app_config.APP_NAME)
-    st.caption(f"Version {app_config.APP_VERSION}  |  Transforming Data into Lifesaving Action at the Edge.")
-st.markdown("---")
+    st.caption(f"Version {app_config.APP_VERSION}  |  Empowering Frontline Health with Edge Intelligence")
+st.markdown("---") 
 
-# --- Introduction to Sentinel Health Co-Pilot System ---
+# --- App Introduction & Navigation Expanders ---
 st.markdown(f"""
-    #### Welcome to the **{app_config.APP_NAME}** System Overview!
+    #### Welcome to the **{app_config.APP_NAME}** System Overview
     
-    This platform demonstrates key aspects of an **edge-first health intelligence system** designed for
-    maximum clinical and operational actionability in resource-limited, high-risk LMIC environments.
-    It aims to bridge advanced technology with real-world field utility, converting diverse data sources
-    (wearables, IoT, contextual inputs) into life-saving, workflow-integrated decisions,
-    with a strong emphasis on **offline-first capabilities** for frontline workers.
+    This platform demonstrates key functionalities and data views of the Sentinel Health Co-Pilot, 
+    an integrated system designed for robust health monitoring and response in challenging LMIC settings. 
+    It emphasizes:
+    - **Real-time, On-Device Intelligence** for frontline health workers via Personal Edge Devices (PEDs).
+    - **Actionable, Context-Aware Recommendations** fitting diverse operational workflows.
+    - **Resilient Data Management** with offline-first capabilities and flexible synchronization.
 
-    **Core Principles Guiding the Sentinel System:**
-    - **Edge-First, Offline Capable:** Intelligence and core functions reside on Personal Edge Devices (PEDs) for continuous operation without internet.
-    - **Action-Driven Insights:** Focus on clear, targeted recommendations and automated alerts, not just data display.
-    - **Human-Centered UX for Frontline:** PED interfaces are pictogram-based, use local languages, and support voice/tap interaction for high-stress, low-literacy environments.
-    - **Resilient & Scalable Data Flow:** Modular architecture allows data synchronization from PEDs to Hubs, Facility Nodes, and potentially Regional/Cloud instances using appropriate technologies (Bluetooth, QR, SD card, SMS, opportunistic IP).
-
-    👈 **The sidebar provides navigation to simulated web-based views for different operational tiers.**
-    These views primarily represent what **Supervisors (Tier 1 Hubs), Clinic Managers (Tier 2 Facility Nodes),
-    or District Health Officers (DHOs at Tier 2/3 Nodes)** would access. They are *not* representative of the
-    native mobile/wearable application used by frontline health workers on their PEDs.
+    The following sections provide access to simulated web-based dashboards representing views for
+    supervisory, clinical management, district health oversight, and population analytics roles
+    (typically Tiers 1 Hub, Tier 2 Facility Node, or Tier 3 Regional/Cloud Node).
 """)
-st.info(
-    "💡 **Note:** This web application serves as a high-level demonstrator for the system's data processing capabilities "
-    "and the types of aggregated views available to management and strategic personnel."
-)
+st.success("👈 **Use the sidebar to navigate to the specific role-based views.**")
 
-st.subheader("Explore Simulated Views for Different System Tiers & Roles:")
-
-# --- Navigation Expanders to Other "Pages" (Simulated Tier 1-3 Web Views) ---
-# Descriptions refined to match new roles and system context.
+st.subheader("Simulated Web Views for System Tiers & Roles:")
 
 with st.expander("🧑‍⚕️ **CHW Field Operations & Support View (Supervisor @ Tier 1 Hub / Tier 2 Node)**", expanded=False):
     st.markdown("""
-    Simulates a web interface for **CHW Supervisors or Hub Coordinators**. This view focuses on:
-    - **Focus:** Aggregated CHW team performance, escalated patient alerts from the field, critical supply needs for CHW kits, and early epidemiological signals derived from CHW data.
-    - **Key Features:** Summaries of daily CHW activities (visits, tasks), lists of patients requiring urgent supervisor attention, CHW team well-being indicators (simulated), and localized risk patterns.
-    - **Objective:** Enable effective team management, provide targeted support to CHWs, facilitate rapid response to critical field situations, and contribute to local health surveillance.
-    *(Frontline CHWs use a dedicated, offline-first native app on their Personal Edge Device (PED) for real-time alerts & task management.)*
+    This view simulates a web interface for **CHW Supervisors or Hub Coordinators**. It focuses on:
+    - **Operational Oversight:** Aggregated CHW team performance, task completion rates.
+    - **Alert Management:** Review of critical patient alerts escalated from the field by CHWs' PEDs.
+    - **Resource & Support Needs:** Identifying CHW kit resupply needs, potential CHW fatigue/stress indicators (based on synced data).
+    - **Local Epi Signals:** Early detection of unusual symptom clusters or disease patterns from CHW reports.
+    *Note: Frontline CHWs use a dedicated, offline-first native app on their Personal Edge Device (PED).*
     """)
-    if st.button("Go to CHW Supervisor View", key="nav_chw_supervisor_sentinel", type="primary"):
+    if st.button("Go to CHW Supervisor View", key="nav_chw_supervisor_sentinel_v2", type="primary"): # Ensure unique key
         st.switch_page("pages/1_chw_dashboard.py")
 
 with st.expander("🏥 **Clinic Operations & Management Console (Clinic Manager @ Tier 2 Facility Node)**", expanded=False):
     st.markdown("""
-    Simulates a web-based console for **Clinic Managers and Lead Clinicians** at a Facility Node. This view focuses on:
-    - **Focus:** Optimizing clinic service delivery, ensuring quality of care, managing resources (staff, tests, supplies), monitoring the clinic's environment for safety, and responding to local epidemiological trends.
-    - **Key Features:** Clinic performance KPIs (e.g., test TAT, patient flow), supply stock forecasts & alerts, IoT environmental sensor summaries, local disease patterns, and lists of flagged patient cases needing clinical review.
-    - **Objective:** Support data-driven clinic management, enhance operational efficiency, ensure patient and staff safety, and maintain high standards of care.
+    Simulates a web-based console for **Clinic Managers and Lead Clinicians** at a Facility Node. Key areas include:
+    - **Service Delivery:** Monitoring patient flow, testing turnaround times (TAT), and quality of care indicators.
+    - **Resource Management:** Tracking critical medical supply levels (drugs, consumables), forecasting needs, and overseeing diagnostic capacity.
+    - **Environmental Safety:** Reviewing IoT sensor data (CO2, PM2.5, occupancy) to ensure a safe clinic environment.
+    - **Local Epidemiology:** Analyzing clinic-level disease patterns, symptom trends, and test positivity rates.
     """)
-    if st.button("Go to Clinic Management Console", key="nav_clinic_manager_sentinel", type="primary"):
+    if st.button("Go to Clinic Management Console", key="nav_clinic_manager_sentinel_v2", type="primary"):
         st.switch_page("pages/2_clinic_dashboard.py")
 
 with st.expander("🗺️ **District Health Strategic Command Center (DHO @ Tier 2/3 Node)**", expanded=False):
     st.markdown("""
-    Presents a strategic web dashboard for **District Health Officers (DHOs) and public health teams**, enabling comprehensive oversight.
-    - **Focus:** Population health management across multiple zones, equitable resource allocation, strategic intervention planning, monitoring environmental health risks, and evaluating program impact.
-    - **Key Features:** District-wide health & operational KPIs, interactive maps for visualizing zonal disparities (risk, burden, access), comparative zonal analytics, district-level trend analysis, and data-driven tools for identifying priority areas for intervention.
-    - **Objective:** Empower DHOs with actionable intelligence for evidence-based strategic planning, effective resource deployment, public health emergency response, and continuous improvement of health outcomes at the district level.
+    Presents a strategic web dashboard for **District Health Officers (DHOs) and public health teams**. Features include:
+    - **Population Health Insights:** District-wide health KPIs, geospatial visualization of zonal health disparities (risk, burden, access).
+    - **Resource Allocation:** Tools for comparative zonal analysis to inform equitable resource distribution.
+    - **Intervention Planning:** Data-driven identification of priority zones for targeted public health interventions.
+    - **Program Monitoring:** Tracking key health trends and the impact of ongoing programs.
     """)
-    if st.button("Go to DHO Command Center", key="nav_dho_strategic_sentinel", type="primary"):
+    if st.button("Go to DHO Command Center", key="nav_dho_strategic_sentinel_v2", type="primary"):
         st.switch_page("pages/3_district_dashboard.py")
 
-with st.expander("📊 **Population Health Analytics & Research Console (Analyst @ Tier 3 / Adv. Tier 2)**", expanded=True): # Kept expanded as an example
+with st.expander("📊 **Population Health Analytics & Research Console (Analyst @ Tier 3 / Adv. Tier 2)**", expanded=False): # Default to collapsed for home page
     st.markdown("""
-    A specialized web interface for **Epidemiologists, Health Data Analysts, and Researchers**, typically at a Regional/Cloud Node or an advanced Facility Node.
-    - **Focus:** In-depth investigation of population health dynamics, demographic and SDOH impacts, clinical and diagnostic patterns, health systems performance, and health equity considerations using broader, aggregated datasets.
-    - **Key Features:** Tools for stratified analysis of disease burden, exploration of AI risk score distributions, advanced test positivity and comorbidity trend analysis, evaluation of referral pathways, and investigation into health disparities.
-    - **Objective:** Provide robust analytical capabilities to generate new insights, support health systems research, evaluate public health programs, and inform evidence-based policy formulation for long-term population health improvement.
+    A specialized web interface for **Epidemiologists, Health Data Analysts, and Researchers**. Provides tools for:
+    - **In-depth Investigations:** Detailed analysis of demographic impacts, SDOH correlations, clinical pathways, and diagnostic trends using comprehensive datasets.
+    - **Health Systems Research:** Evaluating system performance, access to care, and health equity across defined populations.
+    - **Program Evaluation & Modeling:** Assessing the impact of public health interventions and modeling future health scenarios.
     """)
-    if st.button("Go to Population Analytics Console", key="nav_pop_analytics_sentinel", type="primary"):
+    if st.button("Go to Population Analytics Console", key="nav_pop_analytics_sentinel_v2", type="primary"):
         st.switch_page("pages/4_population_dashboard.py")
 
 st.markdown("---")
-st.subheader(f"{app_config.APP_NAME} - Core Capabilities") # Updated to match system name
-col_cap1, col_cap2, col_cap3 = st.columns(3)
-with col_cap1:
-    st.markdown("##### 🛡️ **Frontline Safety & Action**")
-    st.markdown("<small>PED-based real-time monitoring, personalized alerts (vitals, environment, fatigue), and JIT guidance for CHWs.</small>", unsafe_allow_html=True)
-    st.markdown("##### 📈 **Multi-Tiered Analytics**")
-    st.markdown("<small>From immediate PED insights to supervisor summaries, clinic operational dashboards, and DHO strategic views.</small>", unsafe_allow_html=True)
-with col_cap2:
-    st.markdown("##### 🧠 **Edge-First AI & Logic**")
-    st.markdown("<small>On-device intelligence (TinyML) for risk stratification, task prioritization, and alert generation, fully offline capable.</small>", unsafe_allow_html=True)
-    st.markdown("##### 🤝 **Human-Centered & Accessible UX**")
-    st.markdown("<small>Pictogram-driven native PED UIs, local languages, voice/tap inputs, and haptic/audio cues for high-stress LMIC contexts.</small>", unsafe_allow_html=True)
-with col_cap3:
-    st.markdown("##### 📡 **Resilient & Flexible Data Sync**")
-    st.markdown("<small>Opportunistic data transfer (Bluetooth, QR, SD, SMS, Wi-Fi) designed for constrained connectivity environments.</small>", unsafe_allow_html=True)
-    st.markdown("##### 🌐 **Interoperable & Scalable Design**")
-    st.markdown("<small>Modular architecture supporting FHIR/IHE standards for integration with national health systems and future expansion.</small>", unsafe_allow_html=True)
+st.subheader(f"{app_config.APP_NAME} - Core System Capabilities")
+# Updated capabilities section using columns for better layout
+key_caps_cols = st.columns(3)
+with key_caps_cols[0]:
+    st.markdown("##### 🛡️ **Edge Intelligence & Action**")
+    st.markdown("<small>PED-based real-time vital/environmental analysis, fatigue/risk scoring, context-aware alerts, and JIT protocol guidance for frontline workers, fully offline.</small>", unsafe_allow_html=True)
+with key_caps_cols[1]:
+    st.markdown("##### 🩺 **Comprehensive Health Monitoring**")
+    st.markdown("<small>Integrated monitoring from individual (wearable/PED) to community (IoT/CHW reports) and facility levels (operational/clinical data).</small>", unsafe_allow_html=True)
+with key_caps_cols[2]:
+    st.markdown("##### 🔗 **Resilient Data Ecosystem**")
+    st.markdown("<small>Modular data flow with opportunistic sync (BT, QR, SD, SMS, IP) across tiers, supporting data aggregation for strategic insights and interoperability (FHIR/IHE).</small>", unsafe_allow_html=True)
 
-# Link to the Glossary page
-with st.expander("📜 **Sentinel System Glossary** - Definitions for terms, metrics, and system components.", expanded=False):
+
+with st.expander("📜 **System Glossary & Terminology** - Definitions for Sentinel Co-Pilot context", expanded=False):
     st.markdown("""
-    - Understand terminology specific to the **Sentinel Health Co-Pilot** system, including concepts like Personal Edge Devices (PEDs), Facility Nodes, Edge AI, and LMIC-focused metrics.
-    - Clarify technical definitions and operational terms used throughout the system's various views and documentation.
+    - Understand key terminology for the **Sentinel Health Co-Pilot** system, including concepts like Personal Edge Devices (PEDs), Facility/Hub Nodes, Edge AI, lean data inputs, and LMIC-specific health metrics.
+    - Useful for all users to clarify technical definitions and operational terms.
     """)
-    if st.button("Go to System Glossary", key="nav_glossary_sentinel", type="secondary"):
+    if st.button("Go to System Glossary", key="nav_glossary_sentinel_v2", type="secondary"):
         st.switch_page("pages/5_Glossary.py")
 
-
-# --- Sidebar Content (Contextual for App Home) ---
-st.sidebar.header(f"{app_config.APP_NAME} Navigation")
+# --- Sidebar Content ---
+st.sidebar.header(f"{app_config.APP_NAME}") # Simpler sidebar header
 if os.path.exists(app_config.APP_LOGO_SMALL):
-    st.sidebar.image(app_config.APP_LOGO_SMALL, width=180)
-st.sidebar.caption(f"Version {app_config.APP_VERSION}")
+    st.sidebar.image(app_config.APP_LOGO_SMALL, width=160) # Adjusted width
+st.sidebar.caption(f"Version: {app_config.APP_VERSION}")
 st.sidebar.markdown("---")
-st.sidebar.markdown("#### About This Demonstrator")
+st.sidebar.markdown("##### **System Overview**") # More direct title
 st.sidebar.info(
-    "This web application simulates higher-level views (Supervisor, Clinic Manager, DHO, Analyst) "
-    "of the Sentinel Health Co-Pilot system. Frontline worker interaction occurs on dedicated Personal Edge Devices (PEDs)."
+    "This web application demonstrates simulated higher-tier views (Supervisor, Clinic Manager, DHO, Analyst) "
+    "of the Sentinel system. Frontline interaction occurs on dedicated Personal Edge Devices (PEDs)."
 )
 st.sidebar.markdown("---")
-st.sidebar.markdown(f"**{app_config.ORGANIZATION_NAME}**")
-st.sidebar.markdown(f"Support: [{app_config.SUPPORT_CONTACT_INFO}](mailto:{app_config.SUPPORT_CONTACT_INFO})", unsafe_allow_html=True)
+st.sidebar.markdown(f"**Support & Information:**<br/>{app_config.ORGANIZATION_NAME}<br/>"
+                    f"Contact: <a href='mailto:{app_config.SUPPORT_CONTACT_INFO}'>{app_config.SUPPORT_CONTACT_INFO}</a>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 st.sidebar.caption(app_config.APP_FOOTER_TEXT)
 
-logger.info(f"Sentinel Health Co-Pilot system overview page ({app_config.APP_NAME}) loaded successfully.")
+logger.info(f"Sentinel Health Co-Pilot system overview page ({app_config.APP_NAME} v{app_config.APP_VERSION}) loaded.")
