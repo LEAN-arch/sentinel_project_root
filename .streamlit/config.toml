@@ -1,0 +1,89 @@
+# sentinel_project_root/.streamlit/config.toml
+# Configuration for Streamlit applications, including the Sentinel Health Co-Pilot web dashboards.
+
+# --- Server Configuration ---
+[server]
+# When running locally, Streamlit opens a browser tab. You can disable this.
+# headless = false
+# Automatically rerun the script when a source file is saved. Good for development.
+runOnSave = true
+# Port to run on. Default is 8501.
+# port = 8501
+# Max upload size for st.file_uploader, in megabytes.
+maxUploadSize = 50 # Default is 200, reduced if not expecting large uploads.
+# Timeout for websocket connections in seconds. Default is 20.
+# Can be increased if app has long-running computations that might cause timeouts.
+# CORTEX_ENABLE_MESSAGE_HOTSWAP=true # Might be needed for very complex apps with frequent reruns
+# enableXsrfProtection = true # Default, good for security
+# enableCORS = true # Default, often needed if embedding or calling from other domains
+
+# --- Browser / Client Configuration ---
+[browser]
+# If true, gather usage statistics. Set to false for privacy or if not desired.
+# For a sensitive health application, false is often preferred.
+gatherUsageStats = false
+# Initial sidebar state. "auto" means Streamlit decides. Can be "expanded" or "collapsed".
+# This is also set in st.set_page_config, which usually takes precedence for the initial page.
+initialSidebarState = "expanded" # Ensure sidebar is open by default for navigation
+
+# --- Logger Configuration ---
+[logger]
+# Level of logging: error, warning, info, debug.
+# This will be the default for Streamlit's own logger and can influence your app's logger
+# if your app_config.py's LOG_LEVEL is not explicitly set or applied.
+level = "info" # Good default for deployed apps. Use "debug" for development.
+# messageFormat = "%(asctime)s %(levelname)s %(name)s: %(message)s" # Streamlit's default is simpler
+
+# --- Runner Configuration ---
+[runner]
+# Allow execution of "unsafe" functions which are not audited for security.
+# This is generally required if you use st.markdown(..., unsafe_allow_html=True) extensively
+# for custom CSS or HTML rendering, which our UI helpers do.
+# By default this is true, but can be explicitly set.
+# fastReruns = true # Default, helps with responsiveness
+
+# --- Theme Configuration ---
+# This allows setting a base theme and overriding specific colors for Streamlit's native components.
+# This complements the Plotly theme (set in ui_visualization_helpers.py) and
+# custom CSS (in style_web_reports.css).
+# The colors should align with your CSS variables in style_web_reports.css
+# and app_config.py for consistency.
+[theme]
+# Primary accent color for interactive elements (widgets like sliders, buttons).
+primaryColor = "#1976D2" # Matches app_config.COLOR_ACTION_PRIMARY (Strong Blue)
+
+# Background color for the main content area of the Streamlit app.
+backgroundColor = "#FFFFFF" # Matches app_config.COLOR_BACKGROUND_WHITE (Clean White for main area)
+
+# Background color for sidebar, expanders, and most other UI elements.
+secondaryBackgroundColor = "#f8f9fa" # Matches app_config.COLOR_BACKGROUND_LIGHT_GREY
+
+# Text color for the main content area.
+textColor = "#343a40" # Matches app_config.COLOR_TEXT_DARK
+
+# Font family for all text in the app (Streamlit components).
+# Options: "sans serif" (default), "serif", "monospace".
+font = "sans serif" # Default, usually best for readability, aligns with system font stack in CSS.
+
+# --- Toolbar Configuration (Top-right menu for apps deployed on Streamlit Community Cloud) ---
+[toolbar]
+# Controls visibility of the "Deploy" button if Streamlit detects it can be deployed.
+# For an already deployed app, this button is usually hidden or context-dependent.
+# feedbackButton = { "enabled" = false } # Example to hide feedback button if not used
+# settings = { "showDeployButton" = false } # Example to hide deploy button from settings menu
+
+# --- Mapbox Configuration ---
+[mapbox]
+# You can set your Mapbox access token here if you prefer it over an environment variable.
+# However, using an environment variable (MAPBOX_ACCESS_TOKEN) is generally more secure and flexible,
+# especially for deployments like Streamlit Cloud where you can set secrets.
+# If set here, it overrides the one from the environment for Streamlit's direct mapbox usage (st.map).
+# Plotly Express mapbox figures will still preferentially use px.set_mapbox_access_token() if called.
+# token = "YOUR_MAPBOX_ACCESS_TOKEN_IF_SET_HERE" # Not recommended to hardcode actual token.
+
+# --- Embedding Configuration (if app is embedded in an iframe) ---
+[embedding]
+# allowRunOnSave = false
+# hideTopBar = true
+# hideSidebarNav = true
+# disableЯкщоScroll = false
