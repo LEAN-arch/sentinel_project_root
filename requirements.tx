@@ -1,23 +1,22 @@
-# requirements.txt
-# Placed in the ROOT of your GitHub repository for Streamlit Cloud.
+# Main application dependencies for Sentinel Health Co-Pilot on Streamlit Cloud
+# Using common, generally compatible versions.
 
-# Core data handling
-pandas>=1.5.0,<2.3.0
-numpy>=1.22.0,<1.27.0
+pandas==1.5.3
+numpy==1.24.4 # Common compatible version, can try looser if needed
 
-# Geospatial - CRITICAL for fixing the ModuleNotFoundError
-# Ensure versions are compatible. Sometimes specifying exact known-good versions helps.
-# Or start without specific versions for these geo packages if a pinned set fails.
-shapely>=2.0.0,<2.1.0
-fiona>=1.8.20,<2.0.0 
-pyproj>=3.3.0,<3.7.0
-rtree>=1.0.0,<1.2.0  # Often a required or helpful dependency for geopandas
-geopandas>=0.10.0,<0.15.0
+# Geospatial stack - versions known to often work together.
+# If issues persist, try removing version pins for these specific four
+# to let pip resolve them based on system GDAL from packages.txt.
+shapely==2.0.1
+fiona==1.9.4 
+pyproj==3.4.1
+geopandas==0.13.2 # Corresponds well with GDAL 3.4-3.6 range often available
 
-# Web framework & Plotting
-streamlit>=1.28.0,<1.36.0 # Or your current/target Streamlit version
-plotly>=5.13.0,<5.21.0
+# Core Streamlit and Plotting
+streamlit==1.28.2 # Use a recent, stable version
+plotly==5.15.0    # Use a recent, stable version
 
-# Utilities (only if directly imported by your Streamlit app pages/utils)
-# python-dotenv # Typically not needed for secrets in Streamlit Cloud
-# requests      # If you make HTTP requests
+# Other direct dependencies from your utils/pages (if any, beyond the above)
+# Example:
+# scikit-learn  # If your AI engine parts (non-edge simulation) need it
+# python-dotenv # Generally not for Cloud, use secrets
