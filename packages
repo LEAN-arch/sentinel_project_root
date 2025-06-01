@@ -1,5 +1,12 @@
+# packages.txt
+# Placed in the ROOT of your GitHub repository for Streamlit Cloud.
+# One package name per line. NO comments.
+
 libgdal-dev
 gdal-bin
 libspatialindex-dev
 build-essential
 python3-dev
+libgeos-dev
+libproj-dev
+pkg-config
