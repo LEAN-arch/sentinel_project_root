@@ -1,10 +1,10 @@
-pandas>=1.5,<2.3
-numpy>=1.22,<1.27
-# scipy  # Only if you actually use it directly
-geopandas>=0.12,<0.15 # Or try just "geopandas" for latest compatible
-shapely>=2.0,<2.1
-fiona>=1.8,<2.0
-pyproj>=3.3,<3.7
-streamlit>=1.25,<1.36
-plotly>=5.10,<5.21
-# Add any other Python packages your application *directly* imports
+# requirements.txt (in repository root)
+pandas
+numpy
+shapely
+fiona
+pyproj
+rtree
+geopandas 
+streamlit
+plotly
