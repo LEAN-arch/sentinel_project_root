@@ -1,87 +1,142 @@
 # sentinel_project_root/test/pages/district_components_sentinel/map_display_district_web.py
-# Part of "Sentinel Health Co-Pilot" - LMIC Edge-First System
-# This module renders the interactive district map for the DHO web dashboard.
-# It consumes the enriched GeoDataFrame and uses the refactored plotting utilities.
+# Renders the interactive district map for the Sentinel DHO web dashboard.
 
 import streamlit as st
-import pandas as pd
-import geopandas as gpd # Still used here for type hints and if GDF passed directly
+import pandas as pd # Not directly used for GDF manipulation here, but good practice
+import geopandas as gpd
 import logging
 
+# Standardized import block
 try:
     from config import app_config
-    # Use the _web suffixed plotting function
     from utils.ui_visualization_helpers import plot_layered_choropleth_map_web, _create_empty_plot_figure
 except ImportError:
-    import sys, os
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_test_root = os.path.abspath(os.path.join(current_dir, os.pardir, os.pardir))
-    if project_test_root not in sys.path: sys.path.insert(0, project_test_root)
+    import sys
+    import os
+    current_script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root_for_utils = os.path.abspath(os.path.join(current_script_dir, os.pardir, os.pardir))
+    if project_root_for_utils not in sys.path:
+        sys.path.insert(0, project_root_for_utils)
     from config import app_config
     from utils.ui_visualization_helpers import plot_layered_choropleth_map_web, _create_empty_plot_figure
-
 
 logger = logging.getLogger(__name__)
 
-def render_district_interactive_map_web( # Renamed for clarity as it's for web display
+def _get_map_metric_options(
+    district_gdf_sample: Optional[gpd.GeoDataFrame] = None
+) -> Dict[str, Dict[str, str]]:
+    """
+    Defines metrics available for map display, checking against GDF sample columns.
+    Returns: {Display Name: {"col": actual_col_name, "colorscale": "PlotlyScale", "format_str": "{:.1f}"}}
+    """
+    # These column names must align with the output of enrich_zone_geodata_with_health_aggregates
+    all_map_metrics = {
+        "Avg. AI Risk Score (Zone)": {"col": "avg_risk_score", "colorscale": "OrRd_r", "format_str": "{:.1f}"},
+        "Key Disease Prevalence (/1k pop)": {"col": "prevalence_per_1000", "colorscale": "YlOrRd_r", "format_str": "{:.1f}"},
+        "Facility Coverage Score (%)": {"col": "facility_coverage_score", "colorscale": "Greens_r", "format_str": "{:.1f}%"}, # Higher is better
+        "Population (Total)": {"col": "population", "colorscale": "Blues", "format_str": "{:,.0f}"},
+        "CHW Density (/10k pop)": {"col": "chw_density_per_10k", "colorscale": "Greens_r", "format_str": "{:.2f}"}, # Placeholder - needs 'chw_density_per_10k' in GDF
+        "Avg. Clinic CO2 (ppm)": {"col": "zone_avg_co2", "colorscale": "Oranges_r", "format_str": "{:.0f}"},
+        "Population Density (per sqkm)": {"col": "population_density", "colorscale": "Plasma_r", "format_str": "{:.1f}"},
+        "Avg. Critical Test TAT (days)": {"col": "avg_test_turnaround_critical", "colorscale": "Reds_r", "format_str": "{:.1f}"},
+        "% Critical Tests TAT Met": {"col": "perc_critical_tests_tat_met", "colorscale": "Greens_r", "format_str": "{:.1f}%"},
+        "Total Patient Encounters (Zone)": {"col": "total_patient_encounters", "colorscale": "Purples", "format_str": "{:,.0f}"},
+    }
+    # Dynamically add active cases for key conditions
+    for cond_key in app_config.KEY_CONDITIONS_FOR_ACTION:
+        col_name_map = f"active_{cond_key.lower().replace(' ', '_').replace('-', '_').replace('(severe)','')}_cases"
+        display_cond_name_map = cond_key.replace("(Severe)", "").strip()
+        all_map_metrics[f"Active {display_cond_name_map} Cases (Zone)"] = {"col": col_name_map, "colorscale": "Inferno_r", "format_str": "{:.0f}"}
+
+    if not isinstance(district_gdf_sample, gpd.GeoDataFrame) or district_gdf_sample.empty:
+        logger.debug("No GDF sample for _get_map_metric_options, returning all defined metrics.")
+        return all_map_metrics
+
+    available_metrics = {}
+    for display_name, details in all_map_metrics.items():
+        col = details["col"]
+        if col in district_gdf_sample.columns and district_gdf_sample[col].notna().any():
+            available_metrics[display_name] = details
+        else:
+            logger.debug(f"Map metric '{display_name}' (col '{col}') excluded: column missing or all NaN in GDF sample.")
+    return available_metrics
+
+
+def render_district_interactive_map_web(
     district_gdf_main_enriched: Optional[gpd.GeoDataFrame],
-    default_selected_metric_col_name: str = 'avg_risk_score', # Internal column name for default
-    reporting_period_str: Optional[str] = "Latest Aggregated Zonal Data"
+    default_selected_metric_col_name: str = 'avg_risk_score', # Internal GDF column name for default
+    reporting_period_str: str = "Latest Aggregated Zonal Data" # Default value
 ) -> None:
     """
     Renders an interactive choropleth map for DHO's district-level visualization.
-    Called from the DHO dashboard page (Tier 2/3).
-    (Full implementation as previously provided in File 30 response for render_district_interactive_map)
     """
-    module_source_context = "DistrictMapWebRenderer"
-    logger.info(f"({module_source_context}) Rendering district map for period: {reporting_period_str}")
+    module_log_prefix = "DistrictMapWebRenderer"
+    logger.info(f"({module_log_prefix}) Rendering district map for period: {reporting_period_str}")
 
     if not isinstance(district_gdf_main_enriched, gpd.GeoDataFrame) or district_gdf_main_enriched.empty:
         st.warning("Map visualization unavailable: Enriched district geographic data (GDF) is missing or empty.")
-        st.plotly_chart(_create_empty_plot_figure("District Health Map", app_config.WEB_MAP_DEFAULT_HEIGHT, "Geographic data not loaded."), use_container_width=True)
+        st.plotly_chart(
+            _create_empty_plot_figure("District Health Map", app_config.WEB_MAP_DEFAULT_HEIGHT, "Geographic data not loaded."),
+            use_container_width=True
+        )
         return
 
-    # (The rest of this function's logic for defining map_metric_options, handling selectbox,
-    # and calling plot_layered_choropleth_map_web is IDENTICAL to what was provided in detail
-    # for the `render_district_interactive_map` function within `map_display_district.py` in File 30 / your Response #20.
-    # This includes dynamic filtering of available_map_metrics_for_selection based on GDF columns.)
-
-    # Example of key parts (Full version was in previous detailed response):
-    map_metric_options_def = { # Aligned with Sentinel outputs
-        "Avg. AI Risk Score (Zone)": {"col": "avg_risk_score", "colorscale": "OrRd_r", "format_str": "{:.1f}"},
-        "Prevalence per 1k (Key Inf.)": {"col": "prevalence_per_1000", "colorscale": "YlOrRd_r", "format_str": "{:.1f}"},
-        # ... Add all other metrics from File 30's map_metric_options_config definition ...
-        "Facility Coverage Score (Zone)": {"col": "facility_coverage_score", "colorscale": "Greens", "format_str": "{:.1f}%"},
-        "Zone Population": {"col": "population", "colorscale": "Viridis", "format_str": "{:,.0f}"},
-    }
-    # Add active case counts for key conditions if columns exist
-    for cond_key_map in app_config.KEY_CONDITIONS_FOR_ACTION:
-        col_map_name = f"active_{cond_key_map.lower().replace(' ', '_').replace('-', '_').replace('(severe)','')}_cases"
-        if col_map_name in district_gdf_main_enriched.columns:
-            map_metric_options_def[f"Active {cond_key_map} Cases (Zone)"] = {"col": col_map_name, "colorscale": "Purples_r", "format_str": "{:.0f}"}
-
-
-    available_metrics_map = { dn: dt for dn, dt in map_metric_options_def.items() if dt["col"] in district_gdf_main_enriched.columns and district_gdf_main_enriched[dt["col"]].notna().any() }
-    if not available_metrics_map: st.warning("No metrics available for map display."); return
-
-    # Find default display name from default_selected_metric_col_name
-    default_display_sel = default_selected_metric_col_name
-    for disp_n, details_n in available_metrics_map.items():
-        if details_n["col"] == default_selected_metric_col_name: default_display_sel = disp_n; break
-    if default_display_sel not in available_metrics_map.keys() and available_metrics_map: default_display_sel = list(available_metrics_map.keys())[0]
+    # Get available metrics for map selection based on the provided GDF
+    available_metrics_for_map_selection = _get_map_metric_options(district_gdf_main_enriched.head())
     
-    sel_metric_disp_name_map = st.selectbox("Select Metric for Map Visualization:", options=list(available_metrics_map.keys()), index=list(available_metrics_map.keys()).index(default_display_sel) if default_display_sel in available_metrics_map else 0, key="dho_page_map_metric_select_v2")
-    
-    selected_metric_details_map = available_metrics_map.get(sel_metric_disp_name_map)
-    if selected_metric_details_map:
-        hover_cols_map_list = ['name', selected_metric_details_map["col"], 'population', 'num_clinics'] # Example
-        map_fig = plot_layered_choropleth_map_web(
-            gdf_data=district_gdf_main_enriched, value_col_name=selected_metric_details_map["col"],
-            map_title=f"District Map: {sel_metric_disp_name_map}", id_col_name='zone_id', # Ensure 'zone_id' in GDF
-            color_scale=selected_metric_details_map["colorscale"], hover_data_cols=[c for c in hover_cols_map_list if c in district_gdf_main_enriched.columns],
-            map_height=app_config.WEB_MAP_DEFAULT_HEIGHT
+    if not available_metrics_for_map_selection:
+        st.warning("No metrics available for map display based on the current geographic data.")
+        st.plotly_chart(
+            _create_empty_plot_figure("District Health Map", app_config.WEB_MAP_DEFAULT_HEIGHT, "No metrics to display."),
+            use_container_width=True
         )
-        st.plotly_chart(map_fig, use_container_width=True)
-    else: st.info("Please select a metric to display on the map.")
+        return
 
-    logger.info(f"({module_source_context}) District map rendered for metric: {sel_metric_disp_name_map if selected_metric_details_map else 'None selected'}")
+    # Determine default selection for the selectbox (user-friendly display name)
+    default_display_name_selection = None
+    for disp_name, details in available_metrics_for_map_selection.items():
+        if details["col"] == default_selected_metric_col_name:
+            default_display_name_selection = disp_name
+            break
+    if not default_display_name_selection: # Fallback if default col_name not found or not available
+        default_display_name_selection = list(available_metrics_for_map_selection.keys())[0]
+
+    # Create selectbox for metric choice
+    selected_metric_display_name = st.selectbox(
+        "Select Metric for Map Visualization:",
+        options=list(available_metrics_for_map_selection.keys()),
+        index=list(available_metrics_for_map_selection.keys()).index(default_display_name_selection),
+        key="dho_map_metric_selector" # Unique key for widget
+    )
+    
+    selected_metric_config = available_metrics_for_map_selection.get(selected_metric_display_name)
+
+    if selected_metric_config:
+        metric_col_to_plot = selected_metric_config["col"]
+        
+        # Define columns to show on hover (must exist in GDF)
+        hover_cols_base = ['name', 'population', 'num_clinics'] # Basic info
+        hover_cols_to_include = [col for col in hover_cols_base if col in district_gdf_main_enriched.columns]
+        if metric_col_to_plot not in hover_cols_to_include : # Ensure the plotted metric is in hover data
+            hover_cols_to_include.append(metric_col_to_plot)
+
+        # Ensure 'zone_id' is present for linking features
+        if 'zone_id' not in district_gdf_main_enriched.columns:
+            st.error("Critical error: 'zone_id' column missing in geographic data for map rendering.")
+            return
+
+        map_figure = plot_layered_choropleth_map_web(
+            gdf_data=district_gdf_main_enriched,
+            value_col_name=metric_col_to_plot,
+            map_title=f"District Map: {selected_metric_display_name}",
+            id_col_name='zone_id', # This links to GeoJSON feature IDs
+            color_scale_name=selected_metric_config["colorscale"],
+            hover_data_cols_list=hover_cols_to_include,
+            map_height_val=app_config.WEB_MAP_DEFAULT_HEIGHT
+            # Facility points could be added here if facility_points_gdf was available and passed
+        )
+        st.plotly_chart(map_figure, use_container_width=True)
+        logger.info(f"({module_log_prefix}) District map rendered for metric: '{selected_metric_display_name}' (column: '{metric_col_to_plot}')")
+    else:
+        st.info("Please select a valid metric to display on the map.")
+        logger.warning(f"({module_log_prefix}) No valid metric configuration found for selected display name: '{selected_metric_display_name}'")
