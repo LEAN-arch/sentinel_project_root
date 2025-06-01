@@ -2,9 +2,9 @@
 # Prepares data for identifying priority zones for intervention in Sentinel.
 
 import pandas as pd
-import numpy as np
+import numpy as np # For pd.Series construction if needed, less direct use now
 import logging
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Optional, List, Callable # Callable for lambda functions
 
 # Standardized import block
 try:
@@ -12,185 +12,212 @@ try:
 except ImportError:
     import sys
     import os
+    # Assumes this file is in sentinel_project_root/test/pages/district_components_sentinel/
     current_script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root_for_utils = os.path.abspath(os.path.join(current_script_dir, os.pardir, os.pardir))
-    if project_root_for_utils not in sys.path:
-        sys.path.insert(0, project_root_for_utils)
+    project_test_root_dir = os.path.abspath(os.path.join(current_script_dir, os.pardir, os.pardir))
+    if project_test_root_dir not in sys.path:
+        sys.path.insert(0, project_test_root_dir)
     from config import app_config
 
 logger = logging.getLogger(__name__)
 
 def get_intervention_criteria_options(
-    district_gdf_check_sample: Optional[pd.DataFrame] = None # Sample of GDF to check column availability
-) -> Dict[str, Dict[str, Any]]:
+    district_gdf_check_sample: Optional[pd.DataFrame] = None # Sample of GDF (e.g., .head()) to check column availability
+) -> Dict[str, Dict[str, Any]]: # Return: {Display Name: {"lambda_func": Callable, "required_cols": List[str], "description": str}}
     """
     Defines and returns available intervention criteria based on app_config and GDF columns.
-    Each criterion includes a display name, a lambda function for evaluation, 
-    required columns, and a description.
+    Each criterion includes a display name, a lambda function for evaluation against the GDF,
+    a list of required columns from the GDF for that lambda, and a description.
     """
-    criteria_definitions: Dict[str, Dict[str, Any]] = {
+    # Define all potential intervention criteria
+    # Column names in 'required_cols' must match those produced by enrich_zone_geodata_with_health_aggregates
+    criteria_definitions_all: Dict[str, Dict[str, Any]] = {
         f"High Avg. AI Risk (Zone Score ≥ {app_config.DISTRICT_ZONE_HIGH_RISK_AVG_SCORE})": {
-            "lambda_func": lambda df: df.get('avg_risk_score', pd.Series(dtype=float)) >= app_config.DISTRICT_ZONE_HIGH_RISK_AVG_SCORE,
+            "lambda_func": lambda df_check: df_check.get('avg_risk_score', pd.Series(dtype=float)) >= app_config.DISTRICT_ZONE_HIGH_RISK_AVG_SCORE,
             "required_cols": ['avg_risk_score'],
             "description": "Zones where the average AI-calculated patient risk score meets or exceeds the district high-risk threshold."
         },
         f"Low Facility Coverage (< {app_config.DISTRICT_INTERVENTION_FACILITY_COVERAGE_LOW_PCT}%)": {
-            "lambda_func": lambda df: df.get('facility_coverage_score', pd.Series(dtype=float)) < app_config.DISTRICT_INTERVENTION_FACILITY_COVERAGE_LOW_PCT,
+            "lambda_func": lambda df_check: df_check.get('facility_coverage_score', pd.Series(dtype=float)) < app_config.DISTRICT_INTERVENTION_FACILITY_COVERAGE_LOW_PCT,
             "required_cols": ['facility_coverage_score'],
-            "description": "Zones with a facility coverage score below the district's minimum acceptable target."
+            "description": "Zones with a facility coverage score (e.g., based on population per clinic or travel times) below the district's minimum acceptable target."
         },
         f"High TB Burden (≥ {app_config.DISTRICT_INTERVENTION_TB_BURDEN_HIGH_ABS} active cases)": {
-            "lambda_func": lambda df: df.get('active_tb_cases', pd.Series(dtype=float)) >= app_config.DISTRICT_INTERVENTION_TB_BURDEN_HIGH_ABS,
+            "lambda_func": lambda df_check: df_check.get('active_tb_cases', pd.Series(dtype=float)) >= app_config.DISTRICT_INTERVENTION_TB_BURDEN_HIGH_ABS,
             "required_cols": ['active_tb_cases'], # Assumes 'active_tb_cases' column from enrichment
-            "description": "Zones with a number of active TB cases meeting or exceeding the defined burden threshold."
+            "description": "Zones with a number of active TB cases meeting or exceeding the defined absolute burden threshold."
         },
-        f"High Avg. Clinic CO2 (≥ {app_config.ALERT_AMBIENT_CO2_HIGH_PPM} ppm)": {
-            "lambda_func": lambda df: df.get('zone_avg_co2', pd.Series(dtype=float)) >= app_config.ALERT_AMBIENT_CO2_HIGH_PPM,
+        f"High Avg. Clinic CO2 (Ventilation Risk ≥ {app_config.ALERT_AMBIENT_CO2_HIGH_PPM} ppm)": {
+            "lambda_func": lambda df_check: df_check.get('zone_avg_co2', pd.Series(dtype=float)) >= app_config.ALERT_AMBIENT_CO2_HIGH_PPM,
             "required_cols": ['zone_avg_co2'],
-            "description": "Zones where the average clinic CO2 levels suggest potential ventilation or overcrowding issues."
+            "description": "Zones where the average clinic CO2 levels suggest potential ventilation issues or overcrowding, indicating higher transmission risk."
         },
-        # Placeholder for CHW Density - requires 'chw_count_per_zone' or similar in GDF
-        # "Low CHW Density (< X per 10k pop)": {
-        #     "lambda_func": lambda df: df.get('chw_density_per_10k', pd.Series(dtype=float)) < SOME_CHW_DENSITY_TARGET,
-        #     "required_cols": ['chw_density_per_10k'], # This col needs to be added during enrichment
-        #     "description": "Zones with insufficient CHW coverage per population."
+        # Placeholder for CHW Density - requires 'chw_density_per_10k' or similar in GDF
+        # This column would need to be calculated during the GDF enrichment phase.
+        # "Low CHW Density (< 2 CHW per 10k Population)": { # Example target
+        #     "lambda_func": lambda df_check: df_check.get('chw_density_per_10k', pd.Series(dtype=float)) < 2.0,
+        #     "required_cols": ['chw_density_per_10k'], 
+        #     "description": "Zones with CHW coverage below 2 CHWs per 10,000 population (example target)."
         # },
+        f"High Critical Test TAT (> {app_config.TARGET_TEST_TURNAROUND_DAYS + 1} days avg)": {
+            "lambda_func": lambda df_check: df_check.get('avg_test_turnaround_critical', pd.Series(dtype=float)) > (app_config.TARGET_TEST_TURNAROUND_DAYS +1),
+            "required_cols": ['avg_test_turnaround_critical'],
+            "description": f"Zones where average turnaround time for critical tests exceeds target by more than 1 day."
+        }
     }
 
-    # Dynamically add criteria for high prevalence of other key conditions
-    for condition_name in app_config.KEY_CONDITIONS_FOR_ACTION:
+    # Dynamically add criteria for high burden of other key conditions from app_config
+    for condition_key_interv in app_config.KEY_CONDITIONS_FOR_ACTION:
         # Construct the column name as generated by enrich_zone_geodata_with_health_aggregates
-        # e.g., "active_malaria_cases", "active_hiv_positive_cases"
-        condition_col_name = f"active_{condition_name.lower().replace(' ', '_').replace('-', '_').replace('(severe)','')}_cases"
-        display_cond_name = condition_name.replace("(Severe)", "").strip()
+        condition_col_name_interv = f"active_{condition_key_interv.lower().replace(' ', '_').replace('-', '_').replace('(severe)','')}_cases"
+        display_condition_name_interv = condition_key_interv.replace("(Severe)", "").strip()
         
-        # Use a higher threshold for general key conditions if not TB (which has its own specific threshold)
-        # This threshold might need to be relative to population or a percentile in a more advanced setup.
-        # For now, using a simple absolute number different from TB's.
-        burden_threshold = app_config.DISTRICT_INTERVENTION_TB_BURDEN_HIGH_ABS if "TB" in display_cond_name else \
-                           app_config.DISTRICT_INTERVENTION_TB_BURDEN_HIGH_ABS * 0.5 # Example: half of TB threshold for others
+        # Use a general burden threshold for other key conditions, could be a fraction of TB's or a new config
+        # For simplicity, using half of TB's absolute threshold as an example if not TB itself
+        burden_thresh_interv = app_config.DISTRICT_INTERVENTION_TB_BURDEN_HIGH_ABS if "TB" in display_condition_name_interv else \
+                               max(1, int(app_config.DISTRICT_INTERVENTION_TB_BURDEN_HIGH_ABS * 0.5)) # Ensure at least 1
         
-        criteria_definitions[f"High {display_cond_name} Burden (≥ {int(burden_threshold)} cases)"] = {
-            "lambda_func": lambda df, col=condition_col_name, thres=burden_threshold: df.get(col, pd.Series(dtype=float)) >= thres,
-            "required_cols": [condition_col_name],
-            "description": f"Zones with a high number of active {display_cond_name} cases."
-        }
+        # Avoid re-adding TB if already specifically defined above with its own threshold
+        if f"High {display_condition_name_interv} Burden" not in criteria_definitions_all or "TB" not in display_condition_name_interv:
+            criteria_definitions_all[f"High {display_condition_name_interv} Burden (≥ {burden_thresh_interv} cases)"] = {
+                "lambda_func": lambda df_check, col=condition_col_name_interv, thres=burden_thresh_interv: df_check.get(col, pd.Series(dtype=float)) >= thres,
+                "required_cols": [condition_col_name_interv],
+                "description": f"Zones with a high number of active {display_condition_name_interv} cases (≥ {burden_thresh_interv})."
+            }
     
     if not isinstance(district_gdf_check_sample, pd.DataFrame) or district_gdf_check_sample.empty:
-        logger.debug("No GDF sample for get_intervention_criteria_options, returning all defined criteria.")
-        return criteria_definitions
+        logger.debug("No GDF sample provided to get_intervention_criteria_options, returning all defined criteria without validation.")
+        return criteria_definitions_all
 
-    # Filter criteria based on column availability and non-null data in the sample GDF
-    available_criteria = {}
-    for display_name, details in criteria_definitions.items():
-        req_cols = details["required_cols"]
-        if all(col in district_gdf_check_sample.columns for col in req_cols) and \
-           all(district_gdf_check_sample[col].notna().any() for col in req_cols): # Check if column has at least one non-NaN value
-            available_criteria[display_name] = details
+    # Filter criteria: only include if all required columns exist in the GDF sample and have some non-null data
+    available_criteria_final = {}
+    for display_name_crit, crit_details in criteria_definitions_all.items():
+        req_cols_crit = crit_details["required_cols"]
+        # Check if all required columns are present AND each required column has at least one non-NaN value
+        if all(col_crit in district_gdf_check_sample.columns for col_crit in req_cols_crit) and \
+           all(district_gdf_check_sample[col_crit].notna().any() for col_crit in req_cols_crit):
+            available_criteria_final[display_name_crit] = crit_details
         else:
-            logger.debug(f"Intervention criterion '{display_name}' excluded: one or more required columns ({req_cols}) missing or all NaN in GDF sample.")
+            logger.debug(f"Intervention criterion '{display_name_crit}' excluded: one or more required columns ({req_cols_crit}) are missing from GDF sample or contain only NaN values.")
             
-    return available_criteria
+    return available_criteria_final
 
 
 def identify_priority_zones_for_intervention(
-    district_gdf_main_enriched: Optional[pd.DataFrame], # GeoDataFrame expected
-    selected_criteria_display_names: List[str],
+    district_gdf_main_enriched: Optional[pd.DataFrame], # Expects a GeoDataFrame, using pd.DataFrame for broader typing
+    selected_criteria_display_names: List[str], # List of display names chosen by user
     available_criteria_options: Dict[str, Dict[str, Any]], # Output from get_intervention_criteria_options
-    reporting_period_str: str = "Latest Data" # Default value
+    reporting_period_str: str = "Latest Aggregated Data" # Default value
 ) -> Dict[str, Any]:
     """
-    Identifies priority zones based on selected intervention criteria.
+    Identifies priority zones based on selected intervention criteria applied to the enriched GeoDataFrame.
     """
-    module_log_prefix = "DistrictInterventionPreparer"
+    module_log_prefix = "DistrictInterventionPreparer" # Consistent prefix
     logger.info(f"({module_log_prefix}) Identifying priority zones for: {reporting_period_str} using criteria: {selected_criteria_display_names}")
     
-    output: Dict[str, Any] = {
+    # Initialize output structure
+    output_intervention_data: Dict[str, Any] = {
         "reporting_period": reporting_period_str,
         "applied_criteria_names": [], # List of display names of criteria that were successfully applied
-        "priority_zones_for_intervention_df": None, # DataFrame of flagged zones
+        "priority_zones_for_intervention_df": pd.DataFrame(), # Default to empty DF
         "data_availability_notes": []
     }
 
     if not isinstance(district_gdf_main_enriched, pd.DataFrame) or district_gdf_main_enriched.empty:
-        note = "Enriched District GeoDataFrame is missing or empty. Cannot plan interventions."
+        note = "Enriched District GeoDataFrame is missing or empty. Cannot proceed with intervention planning."
         logger.warning(f"({module_log_prefix}) {note}")
-        output["data_availability_notes"].append(note)
-        output["priority_zones_for_intervention_df"] = pd.DataFrame() # Empty DF for consistency
-        return output
+        output_intervention_data["data_availability_notes"].append(note)
+        return output_intervention_data
 
     if not selected_criteria_display_names:
-        note = "No intervention criteria selected by the user."
+        note = "No intervention criteria were selected by the user. No zones flagged."
         logger.info(f"({module_log_prefix}) {note}")
-        output["data_availability_notes"].append(note)
-        output["priority_zones_for_intervention_df"] = pd.DataFrame()
-        return output
+        output_intervention_data["data_availability_notes"].append(note)
+        return output_intervention_data
     
-    # Initialize a boolean Series for combining criteria (logical OR)
-    combined_criteria_mask = pd.Series([False] * len(district_gdf_main_enriched), index=district_gdf_main_enriched.index)
-    applied_criteria_names_list = []
-    flagging_reasons_per_zone = {zone_idx: [] for zone_idx in district_gdf_main_enriched.index}
+    # Initialize a boolean Series for combining criteria (zones meeting ANY selected criterion)
+    overall_flagging_mask = pd.Series([False] * len(district_gdf_main_enriched), index=district_gdf_main_enriched.index)
+    successfully_applied_criteria = []
+    # To store which criteria flagged each zone
+    zone_flagging_reasons = {zone_idx: [] for zone_idx in district_gdf_main_enriched.index}
 
-
-    for criterion_display_name in selected_criteria_display_names:
-        criterion_details = available_criteria_options.get(criterion_display_name)
-        if not criterion_details or 'lambda_func' not in criterion_details or 'required_cols' not in criterion_details:
-            logger.warning(f"({module_log_prefix}) Details missing for criterion: '{criterion_display_name}'. Skipping.")
+    for criterion_name_selected in selected_criteria_display_names:
+        criterion_config = available_criteria_options.get(criterion_name_selected)
+        
+        if not criterion_config or 'lambda_func' not in criterion_config or 'required_cols' not in criterion_config:
+            logger.warning(f"({module_log_prefix}) Configuration details missing or invalid for selected criterion: '{criterion_name_selected}'. Skipping this criterion.")
+            output_intervention_data["data_availability_notes"].append(f"Invalid configuration for criterion: {criterion_name_selected}.")
             continue
 
-        # Check if all required columns for this specific criterion are present in the GDF
-        if not all(col in district_gdf_main_enriched.columns for col in criterion_details['required_cols']):
-            note = f"Criterion '{criterion_display_name}' skipped: missing one or more required columns ({criterion_details['required_cols']}) in GDF."
+        # Before applying lambda, ensure all its required columns are actually in the main GDF
+        if not all(col_req in district_gdf_main_enriched.columns for col_req in criterion_config['required_cols']):
+            note = f"Criterion '{criterion_name_selected}' skipped: one or more required columns ({criterion_config['required_cols']}) not found in the provided GeoDataFrame."
             logger.warning(f"({module_log_prefix}) {note}")
-            output["data_availability_notes"].append(note)
+            output_intervention_data["data_availability_notes"].append(note)
             continue
         
         try:
             # Apply the lambda function to get a boolean mask for the current criterion
-            current_criterion_mask = criterion_details['lambda_func'](district_gdf_main_enriched)
-            if isinstance(current_criterion_mask, pd.Series) and current_criterion_mask.dtype == bool:
-                combined_criteria_mask |= current_criterion_mask.fillna(False) # Combine with OR
-                applied_criteria_names_list.append(criterion_display_name)
+            current_mask_for_criterion = criterion_config['lambda_func'](district_gdf_main_enriched)
+            if isinstance(current_mask_for_criterion, pd.Series) and current_mask_for_criterion.dtype == bool:
+                overall_flagging_mask |= current_mask_for_criterion.fillna(False) # Combine with OR logic
+                successfully_applied_criteria.append(criterion_name_selected)
                 
-                # Store the reason for flagging for each zone
-                for zone_idx in district_gdf_main_enriched.index[current_criterion_mask.fillna(False)]:
-                    flagging_reasons_per_zone[zone_idx].append(criterion_display_name)
-
+                # Record this criterion as a reason for flagging for relevant zones
+                for idx_flagged_zone in district_gdf_main_enriched.index[current_mask_for_criterion.fillna(False)]:
+                    zone_flagging_reasons[idx_flagged_zone].append(criterion_name_selected)
             else:
-                logger.warning(f"({module_log_prefix}) Criterion '{criterion_display_name}' did not return a valid boolean Series. Skipping.")
-        except Exception as e:
-            logger.error(f"({module_log_prefix}) Error applying criterion '{criterion_display_name}': {e}", exc_info=True)
-            output["data_availability_notes"].append(f"Error processing criterion: {criterion_display_name}.")
+                logger.warning(f"({module_log_prefix}) Criterion '{criterion_name_selected}' lambda function did not return a valid boolean Series. Skipping.")
+                output_intervention_data["data_availability_notes"].append(f"Invalid output from criterion: {criterion_name_selected}.")
+        except Exception as e_apply_crit:
+            logger.error(f"({module_log_prefix}) Error applying criterion '{criterion_name_selected}': {e_apply_crit}", exc_info=True)
+            output_intervention_data["data_availability_notes"].append(f"Error during processing of criterion: {criterion_name_selected}.")
 
-    output["applied_criteria_names"] = applied_criteria_names_list
+    output_intervention_data["applied_criteria_names"] = successfully_applied_criteria
     
-    priority_zones_df = district_gdf_main_enriched[combined_criteria_mask].copy()
+    df_priority_zones_flagged = district_gdf_main_enriched[overall_flagging_mask].copy() # Use .copy()
 
-    if not priority_zones_df.empty:
-        # Add a column with the reasons for flagging
-        priority_zones_df['flagging_reasons'] = priority_zones_df.index.map(lambda idx: "; ".join(flagging_reasons_per_zone.get(idx, [])))
-
-        # Select relevant columns for display, including the metric values that triggered flagging
-        display_cols = ['name', 'population', 'avg_risk_score', 'flagging_reasons'] # Basic columns
-        # Add columns related to the applied criteria
-        for crit_name in applied_criteria_names_list:
-            crit_details_disp = available_criteria_options.get(crit_name)
-            if crit_details_disp:
-                for req_col_disp in crit_details_disp['required_cols']:
-                    if req_col_disp not in display_cols and req_col_disp in priority_zones_df.columns:
-                        display_cols.append(req_col_disp)
-        
-        # Ensure all selected display_cols actually exist before trying to select them
-        final_display_cols = [col for col in display_cols if col in priority_zones_df.columns]
-        
-        output["priority_zones_for_intervention_df"] = priority_zones_df[final_display_cols].sort_values(
-            by='avg_risk_score', ascending=False # Example sort: by risk score
+    if not df_priority_zones_flagged.empty:
+        # Add a column detailing the reasons (which criteria) for flagging
+        df_priority_zones_flagged['flagging_reasons_summary'] = df_priority_zones_flagged.index.map(
+            lambda zone_idx_map: "; ".join(zone_flagging_reasons.get(zone_idx_map, ["Unknown Reason"]))
         )
-        logger.info(f"({module_log_prefix}) Identified {len(priority_zones_df)} priority zones based on criteria: {applied_criteria_names_list}")
-    else:
-        note = "No zones meet the selected combination of intervention criteria."
-        logger.info(f"({module_log_prefix}) {note}")
-        output["data_availability_notes"].append(note)
-        output["priority_zones_for_intervention_df"] = pd.DataFrame() # Ensure consistent empty DF
 
-    return output
+        # Select relevant columns for display in the intervention planning table
+        # Start with basic identifiers and add the actual metric values that triggered flagging.
+        display_columns_intervention = ['name', 'population', 'avg_risk_score', 'flagging_reasons_summary'] 
+        # Add columns related to the actually applied criteria
+        for crit_name_applied in successfully_applied_criteria:
+            crit_details_applied = available_criteria_options.get(crit_name_applied)
+            if crit_details_applied:
+                for req_col_applied in crit_details_applied['required_cols']:
+                    if req_col_applied not in display_columns_intervention and req_col_applied in df_priority_zones_flagged.columns:
+                        display_columns_intervention.append(req_col_applied)
+        
+        # Ensure all selected display_columns_intervention actually exist before trying to select them (safety net)
+        final_display_cols_intervention = [col_disp for col_disp in display_columns_intervention if col_disp in df_priority_zones_flagged.columns]
+        
+        # Sort flagged zones, e.g., by average risk score (descending) or population
+        sort_col_interv = 'avg_risk_score' if 'avg_risk_score' in final_display_cols_intervention else \
+                          ('population' if 'population' in final_display_cols_intervention else None)
+        ascending_sort_interv = False if sort_col_interv == 'avg_risk_score' else True # Higher risk first
+
+        if sort_col_interv:
+             output_intervention_data["priority_zones_for_intervention_df"] = df_priority_zones_flagged[final_display_cols_intervention].sort_values(
+                by=sort_col_interv, ascending=ascending_sort_interv
+            )
+        else: # No obvious sort column, just use the selected columns
+            output_intervention_data["priority_zones_for_intervention_df"] = df_priority_zones_flagged[final_display_cols_intervention]
+        
+        logger.info(f"({module_log_prefix}) Identified {len(df_priority_zones_flagged)} priority zones based on criteria: {successfully_applied_criteria}")
+    else: # No zones met the combined criteria
+        note = "No zones meet the selected combination of intervention criteria based on current data."
+        logger.info(f"({module_log_prefix}) {note}")
+        output_intervention_data["data_availability_notes"].append(note)
+        # Ensure priority_zones_for_intervention_df is an empty DF with some schema if no zones flagged
+        # This helps UI components expecting a DataFrame.
+        example_cols_if_empty = ['name', 'population', 'avg_risk_score', 'flagging_reasons_summary']
+        output_intervention_data["priority_zones_for_intervention_df"] = pd.DataFrame(columns=example_cols_if_empty)
+
+
+    return output_intervention_data
