@@ -1,0 +1,15 @@
+# requirements.txt (in repository root)
+pandas>=1.5,<2.3
+numpy>=1.22,<1.27
+# scipy>=1.9,<1.14 # Add if explicitly used by your final code
+
+geopandas>=0.12,<0.15
+shapely>=2.0,<2.1 # Often a key dependency that needs compatible version
+fiona>=1.8,<2.0   # For reading/writing geo file formats
+pyproj>=3.3,<3.7  # For CRS transformations
+
+streamlit>=1.25,<1.36
+plotly>=5.10,<5.21
+
+# Add any other direct Python dependencies your app needs
+# e.g., scikit-learn if you keep any ML parts in the Streamlit app code
