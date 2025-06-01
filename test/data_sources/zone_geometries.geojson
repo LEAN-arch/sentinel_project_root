@@ -1,0 +1,75 @@
+{
+  "type": "FeatureCollection",
+  "name": "DistrictOperationalZones",
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::4326" } },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "zone_id": "ZoneA",
+        "name": "North Sector Alpha",
+        "description": "Urban and peri-urban northern district region."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [ -117.05, 32.55 ], [ -117.05, 32.65 ], [ -116.95, 32.65 ],
+            [ -116.95, 32.55 ], [ -117.05, 32.55 ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone_id": "ZoneB",
+        "name": "South Sector Beta",
+        "description": "Rural southern plains with scattered settlements."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [ -117.05, 32.45 ], [ -117.05, 32.55 ], [ -116.95, 32.55 ],
+            [ -116.95, 32.45 ], [ -117.05, 32.45 ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone_id": "ZoneC",
+        "name": "East Sector Gamma",
+        "description": "Eastern hilly region with dense informal settlements."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [ -116.95, 32.55 ], [ -116.95, 32.65 ], [ -116.85, 32.65 ],
+            [ -116.85, 32.55 ], [ -116.95, 32.55 ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone_id": "ZoneD",
+        "name": "West Sector Delta",
+        "description": "Coastal western strip, mixed residential and light industry."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [ -116.95, 32.45 ], [ -116.95, 32.55 ], [ -116.85, 32.55 ],
+            [ -116.85, 32.45 ], [ -116.95, 32.45 ]
+          ]
+        ]
+      }
+    }
+  ]
+}
