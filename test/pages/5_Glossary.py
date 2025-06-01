@@ -3,26 +3,14 @@
 
 import streamlit as st
 import os
-import sys # Kept for original path logic, ensure it works or remove if Streamlit handles pages well
+# import sys # sys.path manipulation removed
 from config import app_config # For APP_NAME, APP_FOOTER_TEXT, and specific thresholds
 import logging
-
-# --- Path Setup (Review if necessary for Streamlit page context) ---
-# Original logic was: module_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-# This attempts to add the 'test/' directory to sys.path if this page is in 'test/pages/'.
-# Streamlit usually handles paths well for pages, but keep if needed for your structure.
-try:
-    # Simplified approach: Assume 'config' is importable if page is run correctly by Streamlit
-    pass
-except ImportError: # Fallback if direct import fails (e.g. running script standalone)
-    module_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)) # Go up one level from 'pages' to 'test'
-    if module_path not in sys.path:
-        sys.path.append(module_path)
-    # Re-try import after path adjustment if it was the issue.
-    from config import app_config
-
+from typing import Optional # For type hinting
 
 # --- Page Configuration ---
+# Assuming page_icon path is handled by app_home or this page's specific needs.
+# If a specific icon for Glossary is desired, it can be set here.
 st.set_page_config(
     page_title=f"Glossary - {app_config.APP_NAME}",
     layout="wide",
@@ -30,12 +18,7 @@ st.set_page_config(
 )
 
 logger = logging.getLogger(__name__)
-# CSS loading would be handled by app_home.py or globally.
-# If needed specifically here:
-# @st.cache_resource
-# def load_glossary_css(): ... load_css(app_config.STYLE_CSS_PATH_WEB) ...
-# load_glossary_css()
-
+# CSS loading is handled by app_home.py
 
 # --- Glossary Content ---
 st.title(f"📜 {app_config.APP_NAME} - Glossary of Terms")
@@ -43,63 +26,162 @@ st.markdown(
     "This page provides definitions for common terms, abbreviations, metrics, and system-specific concepts "
     "used throughout the Sentinel Health Co-Pilot platform and its documentation."
 )
-st.markdown("---")
+st.divider() # Modern separator
 
 # Helper function for consistent term formatting
 def display_term_sentinel(term: str, definition: str, related_config: Optional[str] = None):
-    st.markdown(f"#### {term}") # Using H4 for terms for better structure
-    st.markdown(f": _{definition}_")
+    st.markdown(f"#### {term}") # Using H4 for terms
+    st.markdown(f"*{definition}*") # Italicize definition
     if related_config:
-        st.caption(f"*(Related configuration/threshold in `app_config.py`: {related_config})*")
-    st.markdown("---") # Separator
+        st.caption(f"*(Related configuration in `app_config.py`: {related_config})*")
+    st.markdown("---") # Separator after each term
 
 
 # --- I. Sentinel Health Co-Pilot System Concepts ---
 st.header("🌐 System Architecture & Core Concepts")
-display_term_sentinel("Sentinel Health Co-Pilot", "An edge-first health intelligence and action support system designed for resource-limited, high-risk LMIC environments. It prioritizes offline functionality, actionable insights for frontline workers, and resilient data flow.")
-display_term_sentinel("Personal Edge Device (PED)", "A ruggedized smartphone, wearable sensor, or low-power SoC device used by frontline health workers. It runs native applications with on-device Edge AI for real-time monitoring, alerts, task management, and JIT guidance, primarily offline.")
-display_term_sentinel("Edge AI / TinyML", "Artificial Intelligence models (e.g., using TensorFlow Lite, MicroML) optimized to run directly on PEDs or local hubs with minimal computational resources, enabling offline decision support.")
-display_term_sentinel("Supervisor Hub (Tier 1)", "An optional intermediary device (e.g., tablet) used by a team leader to locally aggregate data from team PEDs via short-range communication (Bluetooth, Wi-Fi Direct) for localized oversight and batched data transfer.")
-display_term_sentinel("Facility Node (Tier 2)", "A local server, PC, or robust device (e.g., Raspberry Pi) at a clinic or community center. It aggregates data from Hubs/PEDs, performs more complex local analytics, interfaces with local EMRs (if any), generates reports, and serves as a staging point for wider data sync.")
-display_term_sentinel("Regional/Cloud Node (Tier 3)", "Optional centralized infrastructure for population-level analytics, epidemiological surveillance, AI model refinement, and national reporting, receiving batched data from Facility Nodes.")
-display_term_sentinel("Lean Data Inputs", f"A principle of collecting only the minimum viable data with maximum predictive power for Edge AI and actionability, suitable for constrained environments. Examples: age group, chronic condition flag (Y/N), SpO2 < {app_config.ALERT_SPO2_CRITICAL_LOW_PCT}%, observed fatigue flag.", related_config="Section IV in app_config.py (conceptual)")
-display_term_sentinel("Action Code / Suggested Action Code", "A system-internal code (e.g., 'ACTION_SPO2_MANAGE_URGENT') generated by an alert or task. On a PED, this code maps to a specific pictogram, JIT guidance, automated communication, or a step in a digital protocol.")
-display_term_sentinel("Opportunistic Sync", "Data synchronization strategy where PEDs/Hubs transfer data to higher tiers only when a viable, low-cost communication channel (Bluetooth, local Wi-Fi, SD card, brief cellular window) becomes available.")
-
+display_term_sentinel(
+    "Sentinel Health Co-Pilot", 
+    "An edge-first health intelligence and action support system designed for resource-limited, high-risk LMIC environments. It prioritizes offline functionality, actionable insights for frontline workers, and resilient data flow."
+)
+display_term_sentinel(
+    "Personal Edge Device (PED)", 
+    "A ruggedized smartphone, wearable sensor, or low-power System-on-Chip (SoC) device used by frontline health workers. It runs native applications with on-device Edge AI for real-time monitoring, alerts, task management, and Just-In-Time (JIT) guidance, primarily offline."
+)
+display_term_sentinel(
+    "Edge AI / TinyML", 
+    "Artificial Intelligence models (e.g., using TensorFlow Lite) optimized to run directly on PEDs or local hubs with minimal computational resources, enabling offline decision support and reducing latency."
+)
+display_term_sentinel(
+    "Supervisor Hub (Tier 1)", 
+    "An optional intermediary device (e.g., tablet or rugged phone) used by a team leader (CHW Supervisor) to locally aggregate data from team PEDs via short-range communication (Bluetooth, Wi-Fi Direct). It enables localized oversight, batched data transfer to higher tiers, and can provide a simplified team dashboard."
+)
+display_term_sentinel(
+    "Facility Node (Tier 2)", 
+    "A local server, PC, or robust device (e.g., Raspberry Pi, mini-PC) located at a clinic, health post, or community center. It aggregates data from Hubs or directly from PEDs, performs more complex local analytics (if resources allow), interfaces with local EMRs (if any), generates local reports/dashboards (like the Clinic Console), and serves as a staging point for wider data synchronization."
+)
+display_term_sentinel(
+    "Regional/Cloud Node (Tier 3)", 
+    "Optional centralized infrastructure (can be on-premise regional server or cloud-based) for population-level analytics, epidemiological surveillance, AI model training/refinement, and national reporting. It receives batched data from Facility Nodes."
+)
+display_term_sentinel(
+    "Lean Data Inputs", 
+    f"A core principle of collecting only the minimum viable data with maximum predictive power for Edge AI and actionability, suitable for constrained LMIC environments. Examples: age group, chronic condition flag (Yes/No), SpO2 < {app_config.ALERT_SPO2_CRITICAL_LOW_PCT}%, observed fatigue flag, key symptoms.", 
+    related_config="Various threshold definitions in app_config.py (e.g., ALERT_SPO2_CRITICAL_LOW_PCT)"
+)
+display_term_sentinel(
+    "Action Code / Suggested Action Code", 
+    "A system-internal code (e.g., 'ACTION_SPO2_MANAGE_URGENT', 'TASK_VISIT_VITALS_URGENT') generated by an alert or task. On a PED, this code maps to a specific pictogram, Just-In-Time guidance media, an automated communication workflow, or a step in a digital protocol (from escalation_protocols.json)."
+)
+display_term_sentinel(
+    "Opportunistic Sync", 
+    "A data synchronization strategy where PEDs, Hubs, or Facility Nodes transfer data to higher tiers only when a viable, low-cost communication channel (e.g., Bluetooth peer-to-peer, local Wi-Fi to hub, brief cellular window, physical SD card transfer) becomes available. This is crucial for environments with intermittent or expensive connectivity."
+)
 
 # --- II. Clinical, Epidemiological & Operational Terms ---
 st.header("🩺 Clinical, Epidemiological & Operational Terms")
-display_term_sentinel("AI Risk Score", f"A simulated algorithmic score (0-100) predicting a patient's or worker's general health risk or likelihood of adverse outcomes, based on a combination of vital signs, symptoms, context, and other factors. High risk generally ≥ {app_config.RISK_SCORE_HIGH_THRESHOLD}.", related_config="RISK_SCORE_HIGH_THRESHOLD")
-display_term_sentinel("AI Follow-up Priority Score / Task Priority Score", f"A simulated score (0-100) generated by an AI model or rule-set to help prioritize which patients require more urgent follow-up or which tasks need immediate attention. High priority often ≥ {app_config.FATIGUE_INDEX_HIGH_THRESHOLD} (example threshold).", related_config="FATIGUE_INDEX_HIGH_THRESHOLD (example)")
-display_term_sentinel("Ambient Heat Index (°C)", f"A measure of how hot it really feels when relative humidity is factored in with the actual air temperature. Alerts typically triggered at levels like {app_config.ALERT_AMBIENT_HEAT_INDEX_RISK_C}°C (Risk) and {app_config.ALERT_AMBIENT_HEAT_INDEX_DANGER_C}°C (Danger).", related_config="ALERT_AMBIENT_HEAT_INDEX_RISK_C, ALERT_AMBIENT_HEAT_INDEX_DANGER_C")
-display_term_sentinel("Condition (Key Actionable)", f"Refers to specific health conditions prioritized by the Sentinel system for monitoring and response, such as those listed in `KEY_CONDITIONS_FOR_ACTION` (e.g., '{', '.join(app_config.KEY_CONDITIONS_FOR_ACTION[:3])}...').", related_config="KEY_CONDITIONS_FOR_ACTION")
-display_term_sentinel("Encounter (CHW/Clinic)", "Any interaction a patient has with the health system or a CHW, such as a home visit, clinic consultation, alert response, or remote check-in.")
-display_term_sentinel("Facility Coverage Score (Zonal)", f"A metric (0-100%) attempting to reflect the adequacy of health facility access and capacity for a zone's population. Low coverage (e.g., < {app_config.DISTRICT_INTERVENTION_FACILITY_COVERAGE_LOW_PCT}%) might trigger DHO review.", related_config="DISTRICT_INTERVENTION_FACILITY_COVERAGE_LOW_PCT")
-display_term_sentinel("Fatigue Index Score", f"A simulated score (0-100) indicating a worker's current fatigue level, derived from sensor data (e.g., HRV, activity) and psychometric inputs. Levels: Moderate ≥ {app_config.FATIGUE_INDEX_MODERATE_THRESHOLD}, High ≥ {app_config.FATIGUE_INDEX_HIGH_THRESHOLD}.", related_config="FATIGUE_INDEX_MODERATE_THRESHOLD, FATIGUE_INDEX_HIGH_THRESHOLD")
-# Add other standard terms like Incidence, Prevalence, SpO2, TAT, etc., if not already obvious from context,
-# ensuring any thresholds mentioned align with app_config.
-display_term_sentinel("SpO₂ (Peripheral Capillary Oxygen Saturation)", f"An estimate of the amount of oxygen in the blood. Critical Low threshold often set around {app_config.ALERT_SPO2_CRITICAL_LOW_PCT}%. Warning Low around {app_config.ALERT_SPO2_WARNING_LOW_PCT}%.", related_config="ALERT_SPO2_CRITICAL_LOW_PCT, ALERT_SPO2_WARNING_LOW_PCT")
-display_term_sentinel("TAT (Test Turnaround Time)", "The time elapsed from when a sample is collected or received by the lab/testing point to when the result is available and communicated. Target for critical tests might be {app_config.TARGET_TEST_TURNAROUND_DAYS} days.", related_config="TARGET_TEST_TURNAROUND_DAYS")
-display_term_sentinel("HRV (Heart Rate Variability)", "The variation in time between consecutive heartbeats. It's a physiological measure often used as an indicator of stress, fatigue, and autonomic nervous system function. Low HRV (e.g., RMSSD < {app_config.STRESS_HRV_LOW_THRESHOLD_MS}ms) can indicate high stress.", related_config="STRESS_HRV_LOW_THRESHOLD_MS")
+display_term_sentinel(
+    "AI Risk Score", 
+    f"A simulated algorithmic score (0-100) predicting a patient's or worker's general health risk or likelihood of adverse outcomes. It's based on a combination of vital signs, symptoms, demographics, and contextual factors. A higher score indicates higher risk (e.g., High Risk generally ≥ {app_config.RISK_SCORE_HIGH_THRESHOLD}).", 
+    related_config="RISK_SCORE_LOW_THRESHOLD, RISK_SCORE_MODERATE_THRESHOLD, RISK_SCORE_HIGH_THRESHOLD"
+)
+display_term_sentinel(
+    "AI Follow-up Priority Score / Task Priority Score", 
+    f"A simulated score (0-100) generated by an AI model or rule-set to help prioritize which patients require more urgent follow-up or which tasks need immediate attention by a CHW or clinic staff. High priority is often associated with scores ≥ {app_config.FATIGUE_INDEX_HIGH_THRESHOLD} (example threshold).", 
+    related_config="FATIGUE_INDEX_HIGH_THRESHOLD (used as a generic high priority threshold)"
+)
+display_term_sentinel(
+    "Ambient Heat Index (°C)", 
+    f"A measure of how hot it feels when relative humidity is factored in with the actual air temperature. Used for heat stress alerts (e.g., Risk at {app_config.ALERT_AMBIENT_HEAT_INDEX_RISK_C}°C, Danger at {app_config.ALERT_AMBIENT_HEAT_INDEX_DANGER_C}°C).", 
+    related_config="ALERT_AMBIENT_HEAT_INDEX_RISK_C, ALERT_AMBIENT_HEAT_INDEX_DANGER_C"
+)
+display_term_sentinel(
+    "Condition (Key Actionable)", 
+    f"Refers to specific health conditions prioritized by the Sentinel system for focused monitoring, alert generation, and response protocols. Examples include: '{app_config.KEY_CONDITIONS_FOR_ACTION[0]}', '{app_config.KEY_CONDITIONS_FOR_ACTION[1]}', etc.", 
+    related_config="KEY_CONDITIONS_FOR_ACTION"
+)
+display_term_sentinel(
+    "Encounter (CHW/Clinic)", 
+    "Any interaction a patient has with the health system or a CHW, documented within Sentinel. This includes home visits, clinic consultations, responses to alerts, scheduled follow-ups, or remote check-ins."
+)
+display_term_sentinel(
+    "Facility Coverage Score (Zonal)", 
+    f"A metric (0-100%), typically calculated at the district level, attempting to reflect the adequacy of health facility access and capacity for a zone's population, often based on population per clinic or travel times. Low coverage (e.g., < {app_config.DISTRICT_INTERVENTION_FACILITY_COVERAGE_LOW_PCT}%) might trigger DHO review.", 
+    related_config="DISTRICT_INTERVENTION_FACILITY_COVERAGE_LOW_PCT"
+)
+display_term_sentinel(
+    "Fatigue Index Score (Worker)", 
+    f"A simulated score (0-100) indicating a CHW's or other frontline worker's current fatigue level. This is typically derived from PED sensor data (e.g., HRV, activity patterns) and/or psychometric inputs. Levels: Moderate ≥ {app_config.FATIGUE_INDEX_MODERATE_THRESHOLD}, High ≥ {app_config.FATIGUE_INDEX_HIGH_THRESHOLD}.", 
+    related_config="FATIGUE_INDEX_MODERATE_THRESHOLD, FATIGUE_INDEX_HIGH_THRESHOLD"
+)
+display_term_sentinel(
+    "HRV (Heart Rate Variability)", 
+    f"The physiological phenomenon of variation in the time interval between consecutive heartbeats. It is measured in milliseconds (ms), often as RMSSD or SDNN. Low HRV (e.g., RMSSD < {app_config.STRESS_HRV_LOW_THRESHOLD_MS}ms) can be an indicator of physiological stress, fatigue, or poor autonomic nervous system function.",
+    related_config="STRESS_HRV_LOW_THRESHOLD_MS"
+)
+display_term_sentinel(
+    "SpO₂ (Peripheral Capillary Oxygen Saturation)", 
+    f"An estimate of the amount of oxygen in the blood, measured as a percentage. Critical Low threshold is often set around {app_config.ALERT_SPO2_CRITICAL_LOW_PCT}%. Warning Low is around {app_config.ALERT_SPO2_WARNING_LOW_PCT}%.", 
+    related_config="ALERT_SPO2_CRITICAL_LOW_PCT, ALERT_SPO2_WARNING_LOW_PCT"
+)
+display_term_sentinel(
+    "TAT (Test Turnaround Time)", 
+    f"The time elapsed from when a sample is collected (or received by the lab/testing point) to when the result is available and communicated. Target TAT for critical tests might be generally around {app_config.TARGET_TEST_TURNAROUND_DAYS} days, but varies by test type.", 
+    related_config="TARGET_TEST_TURNAROUND_DAYS, KEY_TEST_TYPES_FOR_ANALYSIS"
+)
 
 
 # --- III. Technical & Data Format Terms ---
 st.header("💻 Technical, Data & Platform Terms")
-display_term_sentinel("API (Application Programming Interface)", "A set of rules and protocols that allows different software applications to communicate and exchange data (e.g., for syncing data between a Facility Node and a Cloud Node).")
-display_term_sentinel("CSV (Comma-Separated Values)", "A simple text file format used to store tabular data. Often used for exporting data for analysis or manual review.")
-display_term_sentinel("FHIR (Fast Healthcare Interoperability Resources)", "A standard describing data formats and elements (known as 'resources') and an API for exchanging electronic health records. Key for interoperability at Tiers 2 & 3.")
-display_term_sentinel("GeoJSON", "An open standard format for encoding geographic data structures. Used for representing zone boundaries and other spatial features.")
-display_term_sentinel("GDF (GeoDataFrame)", "A data structure from the Python GeoPandas library, similar to a Pandas DataFrame but with added geospatial capabilities for storing and manipulating geometries (points, lines, polygons).")
-display_term_sentinel("IoT (Internet of Things)", "A network of physical objects ('things') embedded with sensors, software, and connectivity to collect and exchange data (e.g., clinic environmental sensors for CO2, temperature).")
-display_term_sentinel("JSON (JavaScript Object Notation)", "A lightweight data-interchange format. Easy for humans to read/write and machines to parse/generate. Used for configuration files and API data.")
-display_term_sentinel("Pictogram", "A simple, iconic image representing a concept, action, or piece of information. Used extensively in PED UIs for low-literacy users.")
-display_term_sentinel("QR Code Packet", "A method for transferring small amounts of data offline by encoding it into one or more QR codes displayed on one device screen and scanned by another.")
-display_term_sentinel("SQLite", "A self-contained, serverless, transactional SQL database engine. Commonly used for local data storage on mobile devices (PEDs) and small hubs.")
-display_term_sentinel("TFLite (TensorFlow Lite)", "A set of tools to help developers run TensorFlow models on mobile, embedded, and IoT devices with low latency and a small binary size. Key for Edge AI.")
+display_term_sentinel(
+    "API (Application Programming Interface)", 
+    "A set of rules, protocols, and tools that allows different software applications to communicate and exchange data. Used in Sentinel for data synchronization between tiers (e.g., Facility Node to Cloud Node) or integration with external systems (e.g., DHIS2, EMRs)."
+)
+display_term_sentinel(
+    "CSV (Comma-Separated Values)", 
+    "A simple text file format where values are separated by commas, used to store tabular data. Often used in Sentinel for data import/export, simulation data sources, or simple reporting outputs."
+)
+display_term_sentinel(
+    "FHIR (Fast Healthcare Interoperability Resources)", 
+    "A standard from HL7 describing data formats and elements (known as 'Resources') and an API for exchanging electronic health records. Key for interoperability, especially at Facility Nodes (Tier 2) and Regional/Cloud Nodes (Tier 3) when integrating with other health information systems."
+)
+display_term_sentinel(
+    "GeoJSON", 
+    f"An open standard format based on JSON for encoding a variety of geographic data structures (e.g., points, lines, polygons). Used in Sentinel for representing zone boundaries and other spatial features. Default CRS used is {app_config.DEFAULT_CRS_STANDARD}.",
+    related_config="DEFAULT_CRS_STANDARD, ZONE_GEOMETRIES_GEOJSON"
+)
+display_term_sentinel(
+    "GDF (GeoDataFrame)", 
+    "A data structure provided by the Python GeoPandas library. It is essentially a Pandas DataFrame with an added special column (the 'geometry' column) that stores geospatial data (Points, Lines, Polygons), enabling spatial operations."
+)
+display_term_sentinel(
+    "IoT (Internet of Things)", 
+    "A network of physical objects ('things') embedded with sensors, software, and connectivity to collect and exchange data. In Sentinel, this refers to devices like clinic environmental sensors (monitoring CO2, temperature, PM2.5, noise) or potentially patient-wearable sensors that are not PEDs."
+)
+display_term_sentinel(
+    "JSON (JavaScript Object Notation)", 
+    "A lightweight data-interchange format that is easy for humans to read and write, and easy for machines to parse and generate. Used extensively in Sentinel for configuration files (like this glossary's source, pictogram maps, haptic patterns, escalation protocols) and for data exchange via APIs."
+)
+display_term_sentinel(
+    "Pictogram", 
+    "A simple, iconic image representing a concept, action, task, or piece of information. Used extensively in Sentinel PED UIs to enhance understanding, especially for users with low literacy or in multilingual contexts. Mapped via `pictogram_map.json`.",
+    related_config="EDGE_APP_PICTOGRAM_CONFIG_FILE"
+)
+display_term_sentinel(
+    "QR Code Packet", 
+    f"A method for transferring small amounts of data offline by encoding it into one or more QR codes displayed on one device's screen and scanned by another. Useful for low-bandwidth PED-to-Hub or PED-to-PED data exchange. Max packet size configured via `QR_PACKET_MAX_SIZE_BYTES` ({app_config.QR_PACKET_MAX_SIZE_BYTES} bytes).",
+    related_config="QR_PACKET_MAX_SIZE_BYTES"
+)
+display_term_sentinel(
+    "SQLite", 
+    "A self-contained, serverless, transactional SQL database engine that is highly portable and requires no separate server process. Commonly used in Sentinel for local data storage on mobile devices (PEDs) and small Supervisor Hubs.",
+    related_config="PED_SQLITE_DB_NAME, HUB_DEVICE_SQLITE_DB_NAME"
+)
+display_term_sentinel(
+    "TFLite (TensorFlow Lite)", 
+    "A set of tools by Google to help developers run TensorFlow models on mobile, embedded, and IoT devices. It enables on-device machine learning with low latency and a small binary size. Key for implementing Edge AI capabilities on Sentinel PEDs.",
+    related_config="EDGE_MODEL_VITALS_DETERIORATION (example model file)"
+)
 
-# --- Add more categories and terms as the Sentinel system evolves ---
-# E.g., Specific Alert Types, Reporting Metrics, LMIC Health Program Acronyms
-
-st.markdown("---")
-st.caption(app_config.APP_FOOTER_TEXT) # Use the footer from the new app_config
+st.divider()
+st.caption(app_config.APP_FOOTER_TEXT)
 logger.info(f"Glossary page for {app_config.APP_NAME} loaded.")
