@@ -12,7 +12,7 @@ shapely>=2.0.0,<2.1.0
 fiona>=1.8.20,<2.0.0 
 pyproj>=3.3.0,<3.7.0
 rtree>=1.0.0,<1.2.0  # Often a required or helpful dependency for geopandas
-geopandas>=0.12.0,<0.15.0
+geopandas>=0.10.0,<0.15.0
 
 # Web framework & Plotting
 streamlit>=1.28.0,<1.36.0 # Or your current/target Streamlit version
