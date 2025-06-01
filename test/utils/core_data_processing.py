@@ -5,18 +5,18 @@
 #   1. Facility Node (Tier 2) and Cloud (Tier 3) backend processing.
 #   2. Initial data provisioning and system setup for simulations or demos.
 #   3. Simulation and testing environments.
-
 import streamlit as st
 import pandas as pd
-import geopandas as gpd
+import geopandas as gpd # << THE CRITICAL IMPORT
 import numpy as np
 import os
-import sys # Added for sys.modules check in conditional st.error/info
+import sys 
 import logging
-from config import app_config # Uses the fully refactored app_config
+from config import app_config
 from typing import List, Dict, Any, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
+GEOPANDAS_AVAILABLE = True
 
 # --- I. Core Helper Functions ---
 def _clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
