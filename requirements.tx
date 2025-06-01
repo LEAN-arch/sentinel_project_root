@@ -1,22 +1,12 @@
-# Main application dependencies for Sentinel Health Co-Pilot on Streamlit Cloud
-# Using common, generally compatible versions.
+# requirements.txt (order attempt)
+pandas
+numpy
+shapely
+fiona
+pyproj
+rtree
+# GDAL (python bindings - ensure version matches system libgdal-dev from packages.txt if possible)
+geopandas # Listed last among its core geo-dependencies
 
-pandas==1.5.3
-numpy==1.24.4 # Common compatible version, can try looser if needed
-
-# Geospatial stack - versions known to often work together.
-# If issues persist, try removing version pins for these specific four
-# to let pip resolve them based on system GDAL from packages.txt.
-shapely==2.0.1
-fiona==1.9.4 
-pyproj==3.4.1
-geopandas==0.13.2 # Corresponds well with GDAL 3.4-3.6 range often available
-
-# Core Streamlit and Plotting
-streamlit==1.28.2 # Use a recent, stable version
-plotly==5.15.0    # Use a recent, stable version
-
-# Other direct dependencies from your utils/pages (if any, beyond the above)
-# Example:
-# scikit-learn  # If your AI engine parts (non-edge simulation) need it
-# python-dotenv # Generally not for Cloud, use secrets
+streamlit
+plotly
