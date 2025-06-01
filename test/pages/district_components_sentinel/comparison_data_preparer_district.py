@@ -1,70 +1,134 @@
 # sentinel_project_root/test/pages/district_components_sentinel/comparison_data_preparer_district.py
-# Part of "Sentinel Health Co-Pilot" - LMIC Edge-First System
-# Prepares data for DHO zonal comparative analysis tables and charts.
+# Prepares data for DHO zonal comparative analysis for Sentinel Health Co-Pilot.
 
 import pandas as pd
-import numpy as np
+import numpy as np # For np.nan
 import logging
 from typing import Dict, Any, Optional, List
 
+# Standardized import block
 try:
-    from config import app_config # Used for metric display hints perhaps
-except ImportError:
-    # ... (Standard fallback import logic for config) ...
-    import sys, os; current_dir = os.path.dirname(os.path.abspath(__file__)); project_test_root = os.path.abspath(os.path.join(current_dir, os.pardir, os.pardir));
-    if project_test_root not in sys.path: sys.path.insert(0, project_test_root)
     from config import app_config
-
+except ImportError:
+    import sys
+    import os
+    current_script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root_for_utils = os.path.abspath(os.path.join(current_script_dir, os.pardir, os.pardir))
+    if project_root_for_utils not in sys.path:
+        sys.path.insert(0, project_root_for_utils)
+    from config import app_config
 
 logger = logging.getLogger(__name__)
 
-# This function could also be a part of a more general "criteria_options_provider.py" if similar logic is needed elsewhere
-def get_comparison_criteria_options_district( # Renamed for clarity from previous get_intervention_criteria_options use
+def get_comparison_criteria_options_district(
     district_gdf_sample: Optional[pd.DataFrame] = None
-) -> Dict[str, Dict[str, str]]: # {Display Name: {"col": col_name, "format_str": "fmt", "colorscale_hint": "scale"}}
+) -> Dict[str, Dict[str, str]]:
     """
     Defines metrics available for zonal comparison, checking against GDF sample if provided.
-    (Full logic as in File 30 for defining comparison_metric_options_config and filtering it)
+    Returns: {Display Name: {"col": actual_col_name, "format_str": "{:.1f}", "colorscale_hint": "Viridis"}}
     """
-    # (Full logic for map_metric_options_config from original map_display -> comparison_metric_options
-    #  and filtering based on district_gdf_sample columns and non-null values, as detailed in File 30.)
-    # For brevity, example below:
-    comp_metrics_def = {
-        "Avg. AI Risk Score": {"col": "avg_risk_score", "colorscale_hint": "OrRd_r", "format_str": "{:.1f}"},
-        "Facility Coverage Score": {"col": "facility_coverage_score", "colorscale_hint": "Greens", "format_str": "{:.1f}%"}
+    # Define all potential comparison metrics with their properties
+    # These column names must match those produced by enrich_zone_geodata_with_health_aggregates
+    all_comparison_metrics = {
+        "Avg. AI Risk Score (Zone)": {"col": "avg_risk_score", "format_str": "{:.1f}", "colorscale_hint": "OrRd_r"},
+        "Key Disease Prevalence (/1k pop)": {"col": "prevalence_per_1000", "format_str": "{:.1f}", "colorscale_hint": "YlOrRd_r"},
+        "Facility Coverage Score (%)": {"col": "facility_coverage_score", "format_str": "{:.1f}%", "colorscale_hint": "Greens_r"}, # Higher is better
+        "Population (Total)": {"col": "population", "format_str": "{:,.0f}", "colorscale_hint": "Blues"},
+        "CHW Density (/10k pop)": {"col": "chw_density_per_10k", "format_str": "{:.2f}", "colorscale_hint": "Greens_r"}, # Placeholder, needs chw_count_zone
+        "Avg. Clinic CO2 (ppm)": {"col": "zone_avg_co2", "format_str": "{:.0f}", "colorscale_hint": "Oranges_r"},
+        "Population Density (per sqkm)": {"col": "population_density", "format_str": "{:.1f}", "colorscale_hint": "Plasma"},
+        "Avg. Critical Test TAT (days)": {"col": "avg_test_turnaround_critical", "format_str": "{:.1f}", "colorscale_hint": "Reds_r"},
+        "% Critical Tests TAT Met": {"col": "perc_critical_tests_tat_met", "format_str": "{:.1f}%", "colorscale_hint": "Greens_r"},
+        "Total Patient Encounters": {"col": "total_patient_encounters", "format_str": "{:,.0f}", "colorscale_hint": "Blues"},
     }
-    if district_gdf_sample is None or district_gdf_sample.empty: return comp_metrics_def
-    return {k:v for k,v in comp_metrics_def.items() if v["col"] in district_gdf_sample.columns and district_gdf_sample[v["col"]].notna().any()}
+    # Dynamically add active cases for key conditions
+    for cond_key in app_config.KEY_CONDITIONS_FOR_ACTION:
+        col_name = f"active_{cond_key.lower().replace(' ', '_').replace('-', '_').replace('(severe)','')}_cases"
+        display_cond_name = cond_key.replace("(Severe)", "").strip()
+        all_comparison_metrics[f"Active {display_cond_name} Cases"] = {"col": col_name, "format_str": "{:.0f}", "colorscale_hint": "Purples_r"}
+
+    if not isinstance(district_gdf_sample, pd.DataFrame) or district_gdf_sample.empty:
+        logger.debug("No GDF sample provided to get_comparison_criteria_options_district, returning all defined metrics.")
+        return all_comparison_metrics
+
+    # Filter metrics based on column existence and non-null data in the sample
+    available_metrics = {}
+    for display_name, details in all_comparison_metrics.items():
+        col = details["col"]
+        if col in district_gdf_sample.columns and district_gdf_sample[col].notna().any():
+            available_metrics[display_name] = details
+        else:
+            logger.debug(f"Metric '{display_name}' (column '{col}') excluded: column missing or all NaN in GDF sample.")
+            
+    return available_metrics
 
 
 def prepare_zonal_comparison_data(
-    district_gdf_main_enriched: Optional[pd.DataFrame],
-    reporting_period_str: Optional[str] = "Latest Aggregated Data"
+    district_gdf_main_enriched: Optional[pd.DataFrame], # Actually a GeoDataFrame, but pandas DataFrame for typing simplicity here
+    reporting_period_str: str = "Latest Aggregated Data" # Default value for reporting period
 ) -> Dict[str, Any]:
     """
-    Prepares data for zonal comparative analysis tables and provides metric config.
-    (Full implementation as previously provided in File 30 response)
+    Prepares data for zonal comparative analysis tables and provides metric configuration.
     """
-    module_source_context = "DistrictComparisonPreparer"
-    logger.info(f"({module_source_context}) Preparing zonal comparison data for: {reporting_period_str}")
-    output_comp_data: Dict[str, Any] = {"reporting_period": reporting_period_str, "comparison_metrics_config": {}, "zonal_comparison_table_df": None, "data_availability_notes": []}
+    module_log_prefix = "DistrictComparisonPreparer"
+    logger.info(f"({module_log_prefix}) Preparing zonal comparison data for: {reporting_period_str}")
+    
+    output_data: Dict[str, Any] = {
+        "reporting_period": reporting_period_str,
+        "comparison_metrics_config": {}, # Will store {display_name: {col, format_str, ...}}
+        "zonal_comparison_table_df": None, # DataFrame for table display
+        "data_availability_notes": []
+    }
     
     if not isinstance(district_gdf_main_enriched, pd.DataFrame) or district_gdf_main_enriched.empty:
-        output_comp_data["data_availability_notes"].append("Enriched GDF missing for comparison."); return output_comp_data
+        note = "Enriched District GeoDataFrame is missing or empty. Cannot prepare comparison data."
+        logger.warning(f"({module_log_prefix}) {note}")
+        output_data["data_availability_notes"].append(note)
+        return output_data
 
-    # (Full logic from File 30: call get_comparison_criteria_options_district, prepare zonal_comparison_table_df)
-    # For brevity, assuming it's implemented. Example of creating table_df structure:
-    metrics_config_for_comp = get_comparison_criteria_options_district(district_gdf_main_enriched.head(1))
-    if not metrics_config_for_comp: output_comp_data["data_availability_notes"].append("No metrics for comparison."); return output_comp_data
-    output_comp_data["comparison_metrics_config"] = metrics_config_for_comp
+    # Get available metrics configuration based on the provided GDF
+    # Pass a sample of the GDF (e.g., head) to check for column existence and data
+    available_metrics_for_comparison = get_comparison_criteria_options_district(district_gdf_main_enriched.head())
     
-    zone_id_col_comp = 'name' if 'name' in district_gdf_main_enriched.columns else 'zone_id'
-    cols_for_comp_table = [zone_id_col_comp] + [details['col'] for details in metrics_config_for_comp.values()]
-    actual_cols_for_table_comp = [col for col in cols_for_comp_table if col in district_gdf_main_enriched.columns]
+    if not available_metrics_for_comparison:
+        note = "No valid metrics found for zonal comparison based on the provided GeoDataFrame."
+        logger.warning(f"({module_log_prefix}) {note}")
+        output_data["data_availability_notes"].append(note)
+        return output_data
+        
+    output_data["comparison_metrics_config"] = available_metrics_for_comparison
     
-    comp_df = district_gdf_main_enriched[actual_cols_for_table_comp].copy()
-    if zone_id_col_comp in comp_df.columns : comp_df.set_index(zone_id_col_comp, inplace=True, drop=False) # Keep col too
-    output_comp_data["zonal_comparison_table_df"] = comp_df
+    # Determine the zone identifier column (prefer 'name', fallback to 'zone_id')
+    zone_identifier_col = 'name'
+    if 'name' not in district_gdf_main_enriched.columns or district_gdf_main_enriched['name'].isnull().all():
+        if 'zone_id' in district_gdf_main_enriched.columns:
+            zone_identifier_col = 'zone_id'
+        else: # Should not happen if GDF is from load_zone_data
+            note = "Critical error: Neither 'name' nor 'zone_id' found in GeoDataFrame for comparison table indexing."
+            logger.error(f"({module_log_prefix}) {note}")
+            output_data["data_availability_notes"].append(note)
+            return output_data
+            
+    # Select columns for the comparison table: zone identifier + all available metric columns
+    columns_for_table = [zone_identifier_col] + [details['col'] for details in available_metrics_for_comparison.values()]
+    # Ensure all selected columns actually exist in the GDF to prevent KeyErrors
+    actual_columns_in_gdf = [col for col in columns_for_table if col in district_gdf_main_enriched.columns]
     
-    logger.info(f"({module_source_context}) Zonal comparison data prepared.")
-    return output_comp_data
+    if len(actual_columns_in_gdf) <= 1: # Only zone identifier, no metrics
+        note = "No metric columns available in GDF for comparison table after filtering."
+        logger.warning(f"({module_log_prefix}) {note}")
+        output_data["data_availability_notes"].append(note)
+        output_data["zonal_comparison_table_df"] = pd.DataFrame(columns=[zone_identifier_col]) # Empty table with ID col
+        return output_data
+
+    comparison_df = district_gdf_main_enriched[actual_columns_in_gdf].copy()
+    
+    # Set the zone identifier as index, but also keep it as a regular column for flexibility
+    # (e.g., if a plotting function prefers it as a column)
+    if zone_identifier_col in comparison_df.columns:
+        comparison_df = comparison_df.set_index(zone_identifier_col, drop=False)
+    
+    output_data["zonal_comparison_table_df"] = comparison_df
+    
+    logger.info(f"({module_log_prefix}) Zonal comparison data prepared with {len(comparison_df)} zones and {len(actual_columns_in_gdf)-1} metrics.")
+    return output_data
