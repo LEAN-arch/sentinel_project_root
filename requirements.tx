@@ -1,14 +1,10 @@
 pandas>=1.5,<2.3
 numpy>=1.22,<1.27
-# scipy>=1.9,<1.14 # Only if you explicitly import scipy in your code
-
-geopandas>=0.12,<0.15 # Or just 'geopandas' to get the latest compatible
-shapely>=2.0,<2.1    # Fiona and PyProj often have tight version compat with Shapely & GDAL
+# scipy  # Only if you actually use it directly
+geopandas>=0.12,<0.15 # Or try just "geopandas" for latest compatible
+shapely>=2.0,<2.1
 fiona>=1.8,<2.0
 pyproj>=3.3,<3.7
-
-streamlit>=1.25,<1.36 # Or your desired Streamlit version
+streamlit>=1.25,<1.36
 plotly>=5.10,<5.21
-
-# Add any other DIRECT python package dependencies from your .py files
-# python-dotenv # (If used, Streamlit Cloud has its own secrets management)
+# Add any other Python packages your application *directly* imports
