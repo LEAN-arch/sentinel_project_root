@@ -1,10 +1,5 @@
-# System dependencies for GeoPandas and its components
-gdal-bin
 libgdal-dev
+gdal-bin
 libspatialindex-dev
-libgeos-dev       # GEOS development headers
-libproj-dev       # PROJ development headers
-python3-rtree     # System rtree, though pip rtree is usually fine
-build-essential   # Already there, good to keep
-python3-dev       # Already there, good to keep
-pkg-config        # Can sometimes help with C library discovery during builds
+build-essential
+python3-dev
