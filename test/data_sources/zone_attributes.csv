@@ -1,0 +1,5 @@
+zone_id,name,population,socio_economic_index,num_clinics,avg_travel_time_clinic_min,predominant_hazard_type,typical_workforce_exposure_level,primary_livelihood,water_source_main
+ZoneA,North Sector Alpha,12500,0.45,2,25,HEAT_DUST,HIGH,Urban Agriculture,Communal Tap
+ZoneB,South Sector Beta,21000,0.62,1,40,FLOODING_SEASONAL,MODERATE,Small Business Trading,Borehole
+ZoneC,East Sector Gamma,8500,0.30,1,15,AIR_POLLUTION_INDUSTRIAL,MODERATE_HIGH,Factory Work,Piped Utility
+ZoneD,West Sector Delta,15000,0.75,3,10,NONE_SPECIFIC,LOW,Formal Employment,Piped Utility
