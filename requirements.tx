@@ -1,10 +1,23 @@
-# requirements.txt (in repository root)
-pandas
-numpy
-shapely
-fiona
-pyproj
-rtree
-geopandas 
-streamlit
-plotly
+# requirements.txt
+# Placed in the ROOT of your GitHub repository for Streamlit Cloud.
+
+# Core data handling
+pandas>=1.5.0,<2.3.0
+numpy>=1.22.0,<1.27.0
+
+# Geospatial - CRITICAL for fixing the ModuleNotFoundError
+# Ensure versions are compatible. Sometimes specifying exact known-good versions helps.
+# Or start without specific versions for these geo packages if a pinned set fails.
+shapely>=2.0.0,<2.1.0
+fiona>=1.8.20,<2.0.0 
+pyproj>=3.3.0,<3.7.0
+rtree>=1.0.0,<1.2.0  # Often a required or helpful dependency for geopandas
+geopandas>=0.12.0,<0.15.0
+
+# Web framework & Plotting
+streamlit>=1.28.0,<1.36.0 # Or your current/target Streamlit version
+plotly>=5.13.0,<5.21.0
+
+# Utilities (only if directly imported by your Streamlit app pages/utils)
+# python-dotenv # Typically not needed for secrets in Streamlit Cloud
+# requests      # If you make HTTP requests
