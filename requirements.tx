@@ -1,20 +1,22 @@
-# requirements.txt
-# Placed in the ROOT of your GitHub repository for Streamlit Cloud.
+# sentinel_project_root/requirements.txt
+# Python dependencies for the Sentinel Health Co-Pilot project (Tiers 2/3 & Development)
 
-# Core data handling
-pandas>=1.5.0,<2.3.0
-numpy>=1.22.0,<1.27.0
+streamlit
+pandas
+numpy
+geopandas
+shapely
+plotly
+# plotly-express is part of the plotly package
 
-# Geospatial stack
-shapely>=2.0.0,<2.1.0
-fiona>=1.8.20,<2.0.0
-pyproj>=3.3.0,<3.7.0
-rtree>=1.0.0,<1.2.0
+# Optional, but often useful with geopandas and for certain data sources:
+# fiona
+# pyproj
+# rtree
 
+# If PostgreSQL is used as a database backend (as hinted in app_config.py for Facility Node):
+# psycopg2-binary
 
-# Web framework & Plotting
-streamlit>=1.28.0,<1.36.0
-plotly>=5.13.0,<5.21.0  # <<<< ENSURE THIS LINE IS PRESENT AND CORRECT
-
-# Other direct dependencies from your utils/pages (if any)
-# e.g., scikit-learn
+# Note: Specific versions should be pinned for production environments
+# e.g., pandas==2.0.3
+# Run `pip freeze > requirements.txt` in a working virtual environment to generate a pinned list.
