@@ -1,44 +1,33 @@
 # sentinel_project_root/test/pages/3_district_dashboard.py
-# Redesigned as "District Health Strategic Command Center" for "Sentinel Health Co-Pilot"
-# This page simulates a web interface for DHOs and public health teams,
-# typically at a Facility Node (Tier 2) or Regional/Cloud Node (Tier 3).
+# District Health Strategic Command Center for Sentinel Health Co-Pilot.
 
 import streamlit as st
 import pandas as pd
-import geopandas as gpd # For type hinting and potential GDF operations on page
-import numpy as np
+import geopandas as gpd
+import numpy as np # Kept for potential use
 import os
 import logging
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime # Added datetime
 
 # --- Sentinel System Imports ---
-from config import app_config # Uses the fully refactored app_config
-
-# Core data loading & processing utilities
+from config import app_config
 from utils.core_data_processing import (
     load_health_records, load_iot_clinic_environment_data, load_zone_data,
     enrich_zone_geodata_with_health_aggregates, get_district_summary_kpis,
-    hash_geodataframe # For Streamlit caching of GeoDataFrames
+    hash_geodataframe # For caching GDFs
 )
-# AI engine (simulation for enriching health data before aggregation)
-from utils.ai_analytics_engine import apply_ai_models
-
-# Refactored District Component data prep/rendering functions
-# (Assumed to be in a _sentinel suffixed sub-package or renamed)
-from pages.district_components_sentinel.kpi_structurer_district import structure_district_kpis_data
-# map_display_district_web now directly renders the map using new plotters
-from pages.district_components_sentinel.map_display_district_web import render_district_interactive_map_web
-from pages.district_components_sentinel.trend_calculator_district import calculate_district_trends_data
-from pages.district_components_sentinel.comparison_data_preparer_district import prepare_zonal_comparison_data
-# get_intervention_criteria_options can be reused if applicable structure
-from pages.district_components_sentinel.intervention_data_preparer_district import identify_priority_zones_for_intervention, get_intervention_criteria_options
-
-# Refactored UI helpers for web display
+from utils.ai_analytics_engine import apply_ai_models # For enriching health data
 from utils.ui_visualization_helpers import (
     render_web_kpi_card,
     plot_annotated_line_chart_web,
     plot_bar_chart_web
 )
+# District Component specific data processors/renderers
+from .district_components_sentinel.kpi_structurer_district import structure_district_kpis_data
+from .district_components_sentinel.map_display_district_web import render_district_interactive_map_web
+from .district_components_sentinel.trend_calculator_district import calculate_district_trends_data
+from .district_components_sentinel.comparison_data_preparer_district import prepare_zonal_comparison_data
+from .district_components_sentinel.intervention_data_preparer_district import identify_priority_zones_for_intervention, get_intervention_criteria_options
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -47,260 +36,271 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 logger = logging.getLogger(__name__)
-# CSS loaded by app_home.py
 
-# --- Data Aggregation and Preparation for DHO View (Simulates Tier 2/3 Node) ---
+# --- Data Aggregation and Preparation for DHO View ---
 @st.cache_data(
     ttl=app_config.CACHE_TTL_SECONDS_WEB_REPORTS,
-    hash_funcs={gpd.GeoDataFrame: hash_geodataframe, pd.DataFrame: pd.util.hash_pandas_object},
-    show_spinner="Aggregating and enriching district-level operational data..."
+    hash_funcs={gpd.GeoDataFrame: hash_geodataframe, pd.DataFrame: pd.util.hash_pandas_object}, # Ensure GDFs are hashed correctly
+    show_spinner="Aggregating district-level operational data..."
 )
-def get_dho_command_center_datasets():
+def get_dho_command_center_datasets_cached(): # Renamed for clarity that it's the cached one
     """
-    Simulates the comprehensive data pipeline that would feed the DHO Command Center.
-    - Loads raw health, IoT, and zone boundary/attribute data.
-    - Applies AI enrichment to health data.
-    - Enriches zonal GDF with aggregated health/IoT metrics.
-    - Calculates overall district summary KPIs.
-    - Prepares filter/criteria options.
-    Returns tuple: (district_gdf_enriched, full_historical_health_df, full_historical_iot_df, district_summary_kpis, available_filter_criteria_dict)
+    Simulates the comprehensive data pipeline for the DHO Command Center.
+    Loads, enriches (AI), aggregates to zones, and calculates district KPIs.
+    Returns: Tuple (enriched_district_gdf, full_historical_health_df, full_historical_iot_df, district_summary_kpis, intervention_criteria_options_dict)
     """
-    logger.info("DHO Command Center: Initializing full data pipeline simulation...")
+    logger.info("DHO Command Center: Initializing full data pipeline simulation (cached)...")
     
-    # 1. Load raw base data (simulating access to a data lake or operational stores)
-    health_df_raw = load_health_records(file_path=app_config.HEALTH_RECORDS_CSV, source_context="DHOData/LoadHealth")
-    iot_df_raw = load_iot_clinic_environment_data(file_path=app_config.IOT_CLINIC_ENVIRONMENT_CSV, source_context="DHOData/LoadIoT")
-    base_zone_gdf_from_load = load_zone_data(source_context="DHOData/LoadZone") # Already merges attributes + geoms
+    health_raw = load_health_records(source_context="DHOData/LoadHealth")
+    iot_raw = load_iot_clinic_environment_data(source_context="DHOData/LoadIoT")
+    base_zone_gdf = load_zone_data(source_context="DHOData/LoadZone")
 
-    # 2. Enrich raw health data with AI model outputs (simulating central processing)
-    full_health_enriched = pd.DataFrame()
-    if not health_df_raw.empty:
-        full_health_enriched = apply_ai_models(health_df_raw, source_context="DHOData/AIEnrichHealth")[0]
-    else:
-        logger.warning("DHO Command Center: Raw health data empty, AI enrichment stage skipped.")
-        # Fallback with schema expected by enrichment if main one is empty.
-        # This schema should ideally match exactly the output of apply_ai_models.
-        # For now, use raw cols + AI cols. A fixture or defined schema is better.
-        base_cols_ai = health_df_raw.columns.tolist() if health_df_raw is not None else []
-        ai_cols = ['ai_risk_score', 'ai_followup_priority_score']
-        full_health_enriched = pd.DataFrame(columns=base_cols_ai + [c for c in ai_cols if c not in base_cols_ai])
-
-
-    if base_zone_gdf_from_load is None or base_zone_gdf_from_load.empty:
-        logger.error("DHO Command Center: Base zone geographic data (GDF) failed to load. Most views will be impacted.")
-        # Return empty structures to prevent downstream crashes on this page
+    if not isinstance(base_zone_gdf, gpd.GeoDataFrame) or base_zone_gdf.empty:
+        logger.error("DHO Command Center: Base zone geographic data (GDF) failed to load or is empty. Critical failure.")
+        # Return empty structures with expected types
         return gpd.GeoDataFrame(), pd.DataFrame(), pd.DataFrame(), {}, {}
 
-    # 3. Enrich the Zonal GeoDataFrame (This is the primary dataset for many DHO views)
-    district_gdf_enriched_main = enrich_zone_geodata_with_health_aggregates(
-        zone_gdf=base_zone_gdf_from_load,
-        health_df=full_health_enriched,
-        iot_df=iot_df_raw, # Pass raw IoT; enrichment function filters/aggregates by zone
+    # Enrich raw health data with AI model outputs
+    full_health_enriched_df = pd.DataFrame()
+    ai_added_cols_dho = ['ai_risk_score', 'ai_followup_priority_score'] # Expected from AI
+    base_health_cols_dho = health_raw.columns.tolist() if isinstance(health_raw, pd.DataFrame) and not health_raw.empty else []
+
+    if isinstance(health_raw, pd.DataFrame) and not health_raw.empty:
+        enriched_output = apply_ai_models(health_raw, source_context="DHOData/AIEnrichHealth")
+        full_health_enriched_df = enriched_output[0]
+    else:
+        logger.warning("DHO Command Center: Raw health data empty or invalid. AI enrichment skipped.")
+        full_health_enriched_df = pd.DataFrame(columns=list(set(base_health_cols_dho + ai_added_cols_dho)))
+
+    # Enrich the Zonal GeoDataFrame
+    # This is the primary dataset for many DHO views.
+    district_gdf_enriched = enrich_zone_geodata_with_health_aggregates(
+        zone_gdf=base_zone_gdf, # This GDF already has base attributes from load_zone_data
+        health_df=full_health_enriched_df, # Pass the AI-enriched health data
+        iot_df=iot_raw, # Pass raw IoT; enrichment function filters/aggregates by zone
         source_context="DHOData/EnrichZoneGDF"
     )
-    if district_gdf_enriched_main is None or district_gdf_enriched_main.empty: # Should return base GDF if enrichment adds nothing but valid
-        logger.warning("DHO Command Center: Full GDF enrichment resulted in empty/None. Defaulting to base zone GDF for map if possible.")
-        district_gdf_enriched_main = base_zone_gdf_from_load if base_zone_gdf_from_load is not None else gpd.GeoDataFrame()
+    if not isinstance(district_gdf_enriched, gpd.GeoDataFrame) or district_gdf_enriched.empty:
+        logger.warning("DHO Command Center: GDF enrichment resulted in empty/None. Defaulting to base zone GDF if available.")
+        district_gdf_enriched = base_zone_gdf if isinstance(base_zone_gdf, gpd.GeoDataFrame) else gpd.GeoDataFrame()
 
-    # 4. Calculate overall district summary KPIs from the enriched GDF
-    district_kpis_summary_main = get_district_summary_kpis(district_gdf_enriched_main, source_context="DHOData/CalcDistrictKPIs")
+    # Calculate overall district summary KPIs from the enriched GDF
+    summary_kpis_district = get_district_summary_kpis(district_gdf_enriched, source_context="DHOData/CalcDistrictKPIs")
 
-    # 5. Prepare filter/criteria options for tabs (e.g., for Intervention Planning)
-    # Using get_intervention_criteria_options as it returns a useful structure: {display_name: {lambda_func, required_cols}}
-    # This check is done on the head of the GDF to see which criteria are applicable.
-    filter_criteria_options = get_intervention_criteria_options(
-        district_gdf_check=district_gdf_enriched_main.head() if not district_gdf_enriched_main.empty else None
+    # Prepare filter/criteria options for tabs (e.g., for Intervention Planning)
+    # Pass a sample of the GDF to check column availability.
+    intervention_criteria = get_intervention_criteria_options(
+        district_gdf_check_sample=district_gdf_enriched.head() if not district_gdf_enriched.empty else None
     )
     
-    logger.info(f"DHO Command Center: Data preparation complete. Enriched GDF shape: {district_gdf_enriched_main.shape if district_gdf_enriched_main is not None else 'N/A'}")
-    return district_gdf_enriched_main, full_health_enriched, iot_df_raw, district_kpis_summary_main, filter_criteria_options
+    logger.info(f"DHO Command Center: Data preparation complete. Enriched GDF shape: {district_gdf_enriched.shape if isinstance(district_gdf_enriched, gpd.GeoDataFrame) else 'N/A'}")
+    return district_gdf_enriched, full_health_enriched_df, iot_raw, summary_kpis_district, intervention_criteria
 
-
-# --- Load All Data for DHO Console ---
-# This simulates the comprehensive data environment available to a DHO.
-# Stored in session_state for persistence across tab interactions IF page doesn't fully rerun on tab switch.
-# However, Streamlit usually reruns the whole script on widget interaction.
-# For heavy data, caching is key.
-if 'dho_data_loaded' not in st.session_state:
+# --- Load All Data for DHO Console (Using Cache and Session State) ---
+# This simulates the data environment available to a DHO.
+if 'dho_data_fully_loaded' not in st.session_state: # Use a more descriptive flag
     st.session_state.district_gdf, \
-    st.session_state.hist_health_df_dho, \
-    st.session_state.hist_iot_df_dho, \
-    st.session_state.district_kpis_summary_dho, \
-    st.session_state.criteria_options_dho = get_dho_command_center_datasets()
-    st.session_state.dho_data_loaded = True
+    st.session_state.historical_health_df_dho, \
+    st.session_state.historical_iot_df_dho, \
+    st.session_state.summary_kpis_dho, \
+    st.session_state.intervention_options_dho = get_dho_command_center_datasets_cached()
+    st.session_state.dho_data_fully_loaded = True # Set flag after successful load
 
-# Use data from session state
-district_gdf_dho = st.session_state.district_gdf
-historical_health_df = st.session_state.hist_health_df_dho
-historical_iot_df = st.session_state.hist_iot_df_dho
-district_summary_kpis = st.session_state.district_kpis_summary_dho
-all_available_criteria_options = st.session_state.criteria_options_dho
-
+# Use data from session state for consistency across interactions
+district_gdf = st.session_state.district_gdf
+health_data_hist_dho = st.session_state.historical_health_df_dho
+iot_data_hist_dho = st.session_state.historical_iot_df_dho
+district_kpis_summary = st.session_state.summary_kpis_dho
+intervention_criteria_config = st.session_state.intervention_options_dho
 
 # --- Page Title and Sidebar ---
 st.title(f"🌍 {app_config.APP_NAME} - District Health Strategic Command Center")
-data_as_of_timestamp = pd.Timestamp('now') # In real scenario, this would be last data refresh time
-st.markdown(f"**Aggregated Zonal Intelligence, Resource Allocation, and Public Health Program Monitoring. Data as of: {data_as_of_timestamp.strftime('%d %b %Y, %H:%M')}**")
-st.markdown("---")
+# Use last data refresh time from a source if available, else use current time as placeholder
+last_data_refresh_time = pd.Timestamp('now') # Placeholder
+st.markdown(f"**Aggregated Zonal Intelligence, Resource Allocation, and Public Health Program Monitoring.** (Data as of: {last_data_refresh_time.strftime('%d %b %Y, %H:%M')})")
+st.divider()
 
 if os.path.exists(app_config.APP_LOGO_SMALL):
-    st.sidebar.image(app_config.APP_LOGO_SMALL, width=180)
+    st.sidebar.image(app_config.APP_LOGO_SMALL, width=150)
 st.sidebar.header("🗓️ Analysis Filters")
 
 # Trend Date Range Selector (Applies primarily to "District-Wide Trends" tab)
-min_hist_date_for_dho_trends = date.today() - timedelta(days=365 * 2) # Allow up to 2 years back
-max_hist_date_for_dho_trends = data_as_of_timestamp.date()
+min_trend_date_dho = last_data_refresh_time.date() - timedelta(days=365 * 2) # Max 2 years historical
+max_trend_date_dho = last_data_refresh_time.date()
 
-default_trend_end_dho_page = max_hist_date_for_dho_trends
-default_trend_start_dho_page = default_trend_end_dho_page - timedelta(days=app_config.WEB_DASHBOARD_DEFAULT_DATE_RANGE_DAYS_TREND * 3 -1) # Default 90 days
-if default_trend_start_dho_page < min_hist_date_for_dho_trends: default_trend_start_dho_page = min_hist_date_for_dho_trends
+default_trend_end_dho = max_trend_date_dho
+# Default to 90 days for DHO trend view
+default_trend_start_dho = default_trend_end_dho - timedelta(days=app_config.WEB_DASHBOARD_DEFAULT_DATE_RANGE_DAYS_TREND * 3 - 1) 
+if default_trend_start_dho < min_trend_date_dho: default_trend_start_dho = min_trend_date_dho
 
-selected_start_dho_trends_page, selected_end_dho_trends_page = st.sidebar.date_input(
+selected_trend_start_dho, selected_trend_end_dho = st.sidebar.date_input(
     "Select Date Range for Trend Analysis:",
-    value=[default_trend_start_dho_page, default_end_dho_trends_page],
-    min_value=min_hist_date_for_dho_trends, max_value=max_hist_date_for_dho_trends,
-    key="dho_page_trend_date_selector_v2"
+    value=[default_trend_start_dho, default_trend_end_dho],
+    min_value=min_trend_date_dho, max_value=max_trend_date_dho,
+    key="dho_trend_date_selector"
 )
-if selected_start_dho_trends_page > selected_end_dho_trends_page:
-    st.sidebar.error("DHO Trends: Start date must be before end date.")
-    selected_start_dho_trends_page = selected_end_dho_trends_page
-
+if selected_trend_start_dho > selected_trend_end_dho:
+    st.sidebar.error("DHO Trends: Start date must be on or before end date.")
+    selected_trend_start_dho = selected_trend_end_dho
 
 # --- Main Section 1: District-Wide KPIs ---
 st.header("📊 District Performance Dashboard")
-if district_summary_kpis and isinstance(district_summary_kpis, dict) and any(district_summary_kpis.values()):
-    dho_kpis_structured_list = structure_district_kpis_data(
-        district_summary_kpis, district_gdf_dho, # Pass GDF for context like total zone count
-        reporting_period_str=f"Snapshot as of {data_as_of_timestamp.strftime('%d %b %Y')}"
+if district_kpis_summary and isinstance(district_kpis_summary, dict) and any(v is not None and not (isinstance(v, float) and np.isnan(v)) for v in district_kpis_summary.values()):
+    # Pass GDF for context like total zone count if kpi_structurer needs it
+    structured_dho_kpis = structure_district_kpis_data(
+        district_kpis_summary, district_gdf, 
+        reporting_period_str=f"Snapshot as of {last_data_refresh_time.strftime('%d %b %Y')}"
     )
-    if dho_kpis_structured_list:
-        num_dho_kpis = len(dho_kpis_structured_list); cols_per_row_dho = 4
-        for i in range(0, num_dho_kpis, cols_per_row_dho):
-            kpi_display_cols = st.columns(cols_per_row_dho)
-            for j, kpi_data_item in enumerate(dho_kpis_structured_list[i : i + cols_per_row_dho]):
-                with kpi_display_cols[j]: render_web_kpi_card(**kpi_data_item) # Unpack dict
-    else: st.info("District KPIs could not be structured from available summary.")
+    if structured_dho_kpis:
+        num_kpis = len(structured_dho_kpis)
+        cols_per_row = 4 # Max KPIs per row
+        for i in range(0, num_kpis, cols_per_row):
+            kpi_row_cols = st.columns(cols_per_row)
+            for kpi_idx_in_row, kpi_data in enumerate(structured_dho_kpis[i : i + cols_per_row]):
+                with kpi_row_cols[kpi_idx_in_row]: render_web_kpi_card(**kpi_data)
+    else: 
+        st.info("District KPIs could not be structured from the available summary data.")
 else:
-    st.warning("District-wide summary KPIs are currently unavailable. Check data aggregation and enrichment pipeline.")
-st.markdown("---")
+    st.warning("District-wide summary KPIs are currently unavailable. Please check data aggregation and enrichment pipeline.")
+st.divider()
 
 # --- Tabbed Interface for Detailed District Analysis ---
 st.header("🔍 In-Depth District Analysis Modules")
-dho_tab_names_list = ["🗺️ Geospatial Overview", "📈 District Trends", "🆚 Zonal Comparison", "🎯 Intervention Planning"]
-tab_map_dho, tab_trends_dho, tab_compare_dho, tab_intervene_dho = st.tabs(dho_tab_names_list)
+tab_titles_dho = ["🗺️ Geospatial Overview", "📈 District Trends", "🆚 Zonal Comparison", "🎯 Intervention Planning"]
+tab_map, tab_trends, tab_compare, tab_intervene = st.tabs(tab_titles_dho)
 
-with tab_map_dho:
+with tab_map:
     st.subheader("Interactive District Health & Environmental Map")
-    if district_gdf_dho is not None and not district_gdf_dho.empty:
-        render_district_interactive_map_web( # This component manages its own metric selectbox
-            district_gdf_main_enriched=district_gdf_dho,
-            default_selected_metric_key='avg_risk_score', # DHO often wants to see risk first
-            reporting_period_str=f"Zonal Data as of {data_as_of_timestamp.strftime('%d %b %Y')}"
+    if isinstance(district_gdf, gpd.GeoDataFrame) and not district_gdf.empty:
+        render_district_interactive_map_web(
+            district_gdf_main_enriched=district_gdf,
+            default_selected_metric_col_name='avg_risk_score', # DHO often interested in risk first
+            reporting_period_str=f"Zonal Data as of {last_data_refresh_time.strftime('%d %b %Y')}"
         )
     else:
         st.warning("Map visualization unavailable: Enriched district geographic data is missing or empty.")
 
-with tab_trends_dho:
-    trend_period_str = f"{selected_start_dho_trends_page.strftime('%d %b %Y')} - {selected_end_dho_trends_page.strftime('%d %b %Y')}"
-    st.subheader(f"District-Wide Health & Environmental Trends ({trend_period_str})")
+with tab_trends:
+    trend_period_display = f"{selected_trend_start_dho.strftime('%d %b %Y')} - {selected_trend_end_dho.strftime('%d %b %Y')}"
+    st.subheader(f"District-Wide Health & Environmental Trends ({trend_period_display})")
     
-    # Filter historical_health_df and historical_iot_df for the selected trend period
-    trend_health_data_for_dho = pd.DataFrame()
-    if not historical_health_df.empty and 'encounter_date' in historical_health_df.columns:
-        trend_health_data_for_dho = historical_health_df[
-            (pd.to_datetime(historical_health_df['encounter_date']).dt.date >= selected_start_dho_trends_page) &
-            (pd.to_datetime(historical_health_df['encounter_date']).dt.date <= selected_end_dho_trends_page)
+    # Filter historical data for the selected trend period
+    health_for_trends_tab = pd.DataFrame()
+    if isinstance(health_data_hist_dho, pd.DataFrame) and not health_data_hist_dho.empty and 'encounter_date' in health_data_hist_dho.columns:
+        health_for_trends_tab = health_data_hist_dho[
+            (pd.to_datetime(health_data_hist_dho['encounter_date']).dt.date >= selected_trend_start_dho) &
+            (pd.to_datetime(health_data_hist_dho['encounter_date']).dt.date <= selected_trend_end_dho)
         ].copy()
 
-    trend_iot_data_for_dho = pd.DataFrame()
-    if historical_iot_df is not None and not historical_iot_df.empty and 'timestamp' in historical_iot_df.columns:
-        trend_iot_data_for_dho = historical_iot_df[
-            (pd.to_datetime(historical_iot_df['timestamp']).dt.date >= selected_start_dho_trends_page) &
-            (pd.to_datetime(historical_iot_df['timestamp']).dt.date <= selected_end_dho_trends_page)
+    iot_for_trends_tab = pd.DataFrame()
+    if isinstance(iot_data_hist_dho, pd.DataFrame) and not iot_data_hist_dho.empty and 'timestamp' in iot_data_hist_dho.columns:
+        iot_for_trends_tab = iot_data_hist_dho[
+            (pd.to_datetime(iot_data_hist_dho['timestamp']).dt.date >= selected_trend_start_dho) &
+            (pd.to_datetime(iot_data_hist_dho['timestamp']).dt.date <= selected_trend_end_dho)
         ].copy()
 
-    district_trends_data_dict = calculate_district_trends_data(
-        trend_health_data_for_dho, trend_iot_data_for_dho,
-        selected_start_dho_trends_page, selected_end_dho_trends_page,
-        trend_period_str
-    )
-    # Display logic for trends (iterate through dict, use plot_annotated_line_chart_web)
-    # ... (Detailed display logic for each trend from previous refactor of district_trends_tab) ...
-    # Example for disease incidence:
-    if district_trends_data_dict.get("disease_incidence_trends"):
-        st.markdown("###### Key Disease Incidence (Weekly):") # Assuming weekly calc
-        disease_trends = district_trends_data_dict["disease_incidence_trends"]
-        # Display in columns, max 2 charts per row for DHO view
-        max_charts_per_row = 2 
-        chart_cols_trends = st.columns(min(len(disease_trends), max_charts_per_row) or 1)
-        current_col_idx = 0
-        for cond, series in disease_trends.items():
-            if series is not None and not series.empty:
-                with chart_cols_trends[current_col_idx % max_charts_per_row]:
-                    st.plotly_chart(plot_annotated_line_chart_web(series, f"{cond} New Cases", y_axis_is_count=True), use_container_width=True)
-                current_col_idx += 1
-
-
-with tab_compare_dho:
-    st.subheader("Comparative Zonal Analysis")
-    if district_gdf_dho is not None and not district_gdf_dho.empty:
-        zonal_comparison_output = prepare_zonal_comparison_data(district_gdf_dho, current_data_timestamp_str)
-        if zonal_comparison_output["zonal_comparison_table_df"] is not None:
-            st.markdown("###### **Aggregated Zonal Metrics Comparison Table**")
-            # The UI for selecting metric for bar chart or for detailed styling of table happens here.
-            # For now, display the prepared DataFrame directly.
-            st.dataframe(zonal_comparison_output["zonal_comparison_table_df"], height=min(500, len(zonal_comparison_output["zonal_comparison_table_df"])*38+60) , use_container_width=True)
-            
-            # Optional: Allow DHO to select a metric from comparison_metrics_config to plot a bar chart
-            # This would involve a st.selectbox and then calling plot_bar_chart_web
-            # Example: show one default bar chart (Avg AI Risk)
-            comp_config = zonal_comparison_output.get("comparison_metrics_config",{})
-            if "Avg. AI Risk Score (Zone)" in comp_config:
-                risk_col_name = comp_config["Avg. AI Risk Score (Zone)"]["col"]
-                # DataFrame needs 'name' or 'zone_id' as a column for x-axis. prepare_zonal_comparison_data sets index.
-                df_for_bar_comp = zonal_comparison_output["zonal_comparison_table_df"].reset_index()
-                zone_id_col_comp = df_for_bar_comp.columns[0] # Likely 'name' or 'zone_id'
-                st.plotly_chart(plot_bar_chart_web(df_for_bar_comp, x_col_bar=zone_id_col_comp, y_col_bar=risk_col_name, title_bar="Avg. AI Risk Score by Zone", sort_values_by_web=risk_col_name), use_container_width=True)
-
-        if zonal_comparison_output["data_availability_notes"]:
-            for note in zonal_comparison_output["data_availability_notes"]: st.caption(note)
+    if health_for_trends_tab.empty and iot_for_trends_tab.empty:
+        st.info(f"No health or IoT data available for the selected trend period: {trend_period_display}")
     else:
-        st.warning("Zonal comparison data unavailable: Enriched district geographic data is missing.")
+        district_trends = calculate_district_trends_data(
+            health_for_trends_tab, iot_for_trends_tab,
+            selected_trend_start_dho, selected_trend_end_dho, # For context, actual filtering done above
+            trend_period_display # For reporting_period key in output
+        )
+        
+        # Display Disease Incidence Trends
+        disease_incidence_map = district_trends.get("disease_incidence_trends", {})
+        if disease_incidence_map:
+            st.markdown("###### Key Disease Incidence (Weekly New Cases):")
+            max_disease_charts_per_row = 2 
+            disease_chart_keys = list(disease_incidence_map.keys())
+            for i in range(0, len(disease_chart_keys), max_disease_charts_per_row):
+                cols_disease_trend = st.columns(max_disease_charts_per_row)
+                for j, key in enumerate(disease_chart_keys[i : i + max_disease_charts_per_row]):
+                    series_data = disease_incidence_map[key]
+                    if isinstance(series_data, pd.Series) and not series_data.empty:
+                        with cols_disease_trend[j]:
+                            st.plotly_chart(plot_annotated_line_chart_web(series_data, f"{key} New Cases", y_is_count=True, y_axis_label="# Cases"), use_container_width=True)
+        
+        # Display Other Trends (AI Risk, Steps, CO2)
+        other_trends_to_plot = {
+            "Avg. Patient AI Risk": (district_trends.get("avg_patient_ai_risk_trend"), "AI Risk Score"),
+            "Avg. Patient Daily Steps": (district_trends.get("avg_patient_daily_steps_trend"), "Steps/Day"),
+            "Avg. Clinic CO2 Levels": (district_trends.get("avg_clinic_co2_trend"), "CO2 (ppm)")
+        }
+        for trend_title, (trend_data, y_label) in other_trends_to_plot.items():
+            if isinstance(trend_data, pd.Series) and not trend_data.empty:
+                st.plotly_chart(plot_annotated_line_chart_web(trend_data, trend_title, y_axis_label=y_label, y_is_count= (y_label == "Steps/Day")), use_container_width=True) # Steps can be count-like
+        
+        if district_trends.get("data_availability_notes"):
+            for note in district_trends["data_availability_notes"]: st.caption(f"Trend Note: {note}")
 
-with tab_intervene_dho:
-    st.subheader("Targeted Intervention Planning Assistant")
-    if district_gdf_dho is not None and not district_gdf_dho.empty and all_available_criteria_options:
-        # User selects criteria for intervention
-        # `all_available_criteria_options` is from get_dho_command_center_datasets
-        default_criteria_selection = list(all_available_criteria_options.keys())[0:min(2, len(all_available_criteria_options))] \
-                                     if all_available_criteria_options else []
+
+with tab_compare:
+    st.subheader("Comparative Zonal Analysis")
+    if isinstance(district_gdf, gpd.GeoDataFrame) and not district_gdf.empty:
+        zonal_comparison = prepare_zonal_comparison_data(district_gdf, f"Data as of {last_data_refresh_time.strftime('%d %b %Y')}")
         
-        selected_criteria_dho_intervene = st.multiselect(
-            "Select Criteria to Identify Priority Zones (logical OR):",
-            options=list(all_available_criteria_options.keys()),
-            default=default_criteria_selection,
-            key="dho_page_intervention_criteria_select_v1"
-        )
-        
-        intervention_results_data = identify_priority_zones_for_intervention(
-            district_gdf_main_enriched=district_gdf_dho,
-            selected_criteria_display_names=selected_criteria_dho_intervene,
-            available_criteria_options=all_available_criteria_options, # Pass the full options dict for lookup
-            reporting_period_str=current_data_timestamp_str
-        )
-        
-        if intervention_results_data["priority_zones_for_intervention_df"] is not None and \
-           not intervention_results_data["priority_zones_for_intervention_df"].empty:
-            st.markdown(f"###### **{len(intervention_results_data['priority_zones_for_intervention_df'])} Zone(s) Flagged for Intervention Based on: {', '.join(intervention_results_data.get('applied_criteria',[]))}**")
-            st.dataframe(intervention_results_data["priority_zones_for_intervention_df"], use_container_width=True, height=min(450, len(intervention_results_data["priority_zones_for_intervention_df"])*40+50))
-        elif selected_criteria_dho_intervene: # If criteria were selected but no zones met them
-             st.success("✅ No zones currently meet the selected combination of high-priority criteria.")
+        comp_table_df = zonal_comparison.get("zonal_comparison_table_df")
+        if isinstance(comp_table_df, pd.DataFrame) and not comp_table_df.empty:
+            st.markdown("###### **Aggregated Zonal Metrics Comparison Table:**")
+            # Make table scrollable if many zones/metrics
+            st.dataframe(comp_table_df, height=min(500, len(comp_table_df)*38 + 60) , use_container_width=True) # Index is zone name/ID
+            
+            # Example: Default bar chart for a key comparison metric
+            comp_metrics_cfg = zonal_comparison.get("comparison_metrics_config", {})
+            default_bar_metric_display = "Avg. AI Risk Score (Zone)"
+            if default_bar_metric_display in comp_metrics_cfg:
+                metric_details_bar = comp_metrics_cfg[default_bar_metric_display]
+                risk_col_bar = metric_details_bar["col"]
+                # The comparison_df has zone name/ID as index, reset for plotting if needed by plot_bar_chart_web
+                df_for_bar = comp_table_df.reset_index() 
+                zone_id_col_for_bar = df_for_bar.columns[0] # First column is the reset index
+                st.plotly_chart(plot_bar_chart_web(df_for_bar, x_col=zone_id_col_for_bar, y_col=risk_col_bar, title=f"{default_bar_metric_display}", sort_by=risk_col_bar, sort_ascending=False, x_axis_label="Zone"), use_container_width=True)
         else:
+            st.info("No data available for zonal comparison table.")
+
+        if zonal_comparison.get("data_availability_notes"):
+            for note in zonal_comparison["data_availability_notes"]: st.caption(f"Comparison Note: {note}")
+    else:
+        st.warning("Zonal comparison data unavailable: Enriched district geographic data is missing or empty.")
+
+with tab_intervene:
+    st.subheader("Targeted Intervention Planning Assistant")
+    if isinstance(district_gdf, gpd.GeoDataFrame) and not district_gdf.empty and intervention_criteria_config:
+        default_criteria_keys = list(intervention_criteria_config.keys())
+        # Select first 2 criteria as default if available
+        default_selection = default_criteria_keys[0:min(2, len(default_criteria_keys))] 
+        
+        selected_intervention_criteria = st.multiselect(
+            "Select Criteria to Identify Priority Zones (zones meeting ANY selected criterion will be shown):",
+            options=default_criteria_keys,
+            default=default_selection,
+            key="dho_intervention_criteria_selector"
+        )
+        
+        intervention_data = identify_priority_zones_for_intervention(
+            district_gdf_main_enriched=district_gdf,
+            selected_criteria_display_names=selected_intervention_criteria,
+            available_criteria_options=intervention_criteria_config,
+            reporting_period_str=f"Data as of {last_data_refresh_time.strftime('%d %b %Y')}"
+        )
+        
+        priority_zones_df_intervene = intervention_data.get("priority_zones_for_intervention_df")
+        applied_criteria_list = intervention_data.get("applied_criteria_names", [])
+
+        if isinstance(priority_zones_df_intervene, pd.DataFrame) and not priority_zones_df_intervene.empty:
+            st.markdown(f"###### **{len(priority_zones_df_intervene)} Zone(s) Flagged for Intervention Based on: {', '.join(applied_criteria_list) if applied_criteria_list else 'Selected Criteria'}**")
+            # Make table scrollable
+            st.dataframe(priority_zones_df_intervene, use_container_width=True, height=min(450, len(priority_zones_df_intervene)*40 + 50), hide_index=True)
+        elif selected_intervention_criteria: # Criteria selected, but no zones met them
+             st.success(f"✅ No zones currently meet the selected criteria: {', '.join(applied_criteria_list) if applied_criteria_list else 'None applied due to data issues'}.")
+        else: # No criteria selected by user
              st.info("Please select one or more criteria above to identify priority zones for intervention.")
 
-        if intervention_results_data["data_availability_notes"]:
-            for note in intervention_results_data["data_availability_notes"]: st.caption(note)
+        if intervention_data.get("data_availability_notes"):
+            for note in intervention_data["data_availability_notes"]: st.caption(f"Intervention Note: {note}")
     else:
-        st.warning("Intervention planning tools unavailable: District geographic data or criteria definitions missing.")
+        st.warning("Intervention planning tools unavailable: District geographic data or criteria definitions are missing.")
 
-logger.info("DHO Strategic Command Center page generated.")
+logger.info(f"DHO Strategic Command Center page generated. Data as of: {last_data_refresh_time.isoformat()}")
