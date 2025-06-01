@@ -1,0 +1,7 @@
+timestamp,clinic_id,room_name,zone_id,avg_co2_ppm,max_co2_ppm,avg_pm25,voc_index,avg_temp_celsius,avg_humidity_rh,avg_noise_db,waiting_room_occupancy,patient_throughput_per_hour,sanitizer_dispenses_per_hour
+2023-10-20T10:00:00Z,CLINIC01,WaitingArea_Main,ZoneB,1850,2200,28.5,180,26.5,65,70,15,8,5
+2023-10-20T10:00:00Z,CLINIC01,ConsultRoom1,ZoneB,900,1100,12.1,110,24.0,58,55,2,10,2
+2023-10-20T10:00:00Z,CLINIC02,Lab,ZoneC,1200,1500,15.0,130,23.5,60,62,,3,1
+2023-10-20T11:00:00Z,CLINIC01,WaitingArea_Main,ZoneB,2650,3100,35.2,210,27.0,68,75,18,7,3
+2023-10-20T11:00:00Z,CLINIC01,ConsultRoom1,ZoneB,1100,1350,10.5,100,24.2,57,58,3,11,3
+2023-10-21T08:30:00Z,CLINIC03,ScreeningTent_Outdoor,ZoneD,550,600,8.1,80,28.5,55,50,5,6,10
