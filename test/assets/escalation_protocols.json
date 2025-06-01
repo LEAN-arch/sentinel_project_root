@@ -33,7 +33,7 @@
       ]
     }
   ],
-  "contacts": { // This would be dynamically populated or securely managed, not hardcoded long-term
+  "contacts": {
       "CHW_SUPERVISOR_TEAM_ALPHA_PHONE": "+1234560001",
       "CLINIC_MAIN_ER_PHONE": "+1234560002",
       "NEAREST_OXYGEN_EQUIPPED_CONTACT_PROTOCOL": "CALL_SUPERVISOR_FOR_COORDINATION"
