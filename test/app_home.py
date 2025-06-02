@@ -15,11 +15,11 @@ if _app_module_root_for_home not in sys.path:
 try:
     from config import app_config 
 except ImportError as e_import_home:
-    _project_root_candidate_home = os.path.abspath(os.path.join(_current_file_dir_home, os.pardir, os.pardir)) # sentinel_project_root
-    _app_path_to_add_home = os.path.join(_project_root_candidate_home, "test") # sentinel_project_root/test
-    if _app_path_to_add_home not in sys.path: # Try adding project_root/test if direct fails
+    _project_root_candidate_home = os.path.abspath(os.path.join(_current_file_dir_home, os.pardir, os.pardir)) 
+    _app_path_to_add_home = os.path.join(_project_root_candidate_home, "test") 
+    if _app_path_to_add_home not in sys.path: 
         sys.path.insert(0, _app_path_to_add_home)
-    try: # Retry import
+    try: 
         from config import app_config
     except ImportError as e_retry_home:
         error_msg_app_home_final = (
@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 
 # --- CSS Loading ---
 @st.cache_resource 
-def load_app_home_styles_final(css_file_path: str): # Renamed to avoid potential streamlit cache key collision
+def load_app_home_styles_final(css_file_path: str):
     if os.path.exists(css_file_path):
         try:
             with open(css_file_path, encoding="utf-8") as f_css_final:
@@ -77,7 +77,7 @@ def load_app_home_styles_final(css_file_path: str): # Renamed to avoid potential
             st.error("Critical error loading application styles.")
     else:
         logger.warning(f"Global web CSS file not found by app_home: {css_file_path}. Default styles apply.")
-        st.warning("Application styles file not found. Display may be affected.")
+        # st.warning("Application styles file not found. Display may be affected.") # Less alarming if optional
 
 if hasattr(app_config, 'STYLE_CSS_PATH_WEB'):
     load_app_home_styles_final(app_config.STYLE_CSS_PATH_WEB)
@@ -108,7 +108,6 @@ st.markdown(f"""
 """)
 
 st.markdown("#### Core Principles Guiding Sentinel:")
-# Using columns for a slightly more visual layout of principles with Emojis
 cols_core_principles = st.columns(2)
 core_principles_list = [
     ("📶 **Offline-First Operations**", "On-device Edge AI on Personal Edge Devices (PEDs) ensures critical functionality without continuous connectivity."),
@@ -120,7 +119,7 @@ for i_principle, (title_principle, desc_principle) in enumerate(core_principles_
     with cols_core_principles[i_principle % 2]:
         st.markdown(f"##### {title_principle}")
         st.markdown(f"<small>{desc_principle}</small>", unsafe_allow_html=True)
-        st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True) # Add some space
+        st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
 
 
 st.markdown("""
@@ -140,38 +139,36 @@ st.divider()
 st.header("Explore Simulated Role-Specific Dashboards")
 st.caption("These views demonstrate the information available at higher tiers (Facility/Regional Nodes).")
 
-role_view_nav_details_list = [
+role_view_navigation_details = [
     ("🧑‍⚕️ CHW Operations Summary & Field Support View (Supervisor/Hub Level)", 
      "This view simulates how a CHW Supervisor or a Hub coordinator might access summarized data from CHW Personal Edge Devices (PEDs).\n\n- **Focus (Tier 1-2):** Team performance monitoring, targeted support for CHWs, localized outbreak signal detection based on aggregated CHW reports.\n- **Key Data Points:** CHW activity summaries (visits, tasks completed), patient alert escalations, critical supply needs for CHW kits, early epidemiological signals from specific zones.\n- **Objective:** Enable supervisors to manage CHW teams effectively, provide timely support, identify emerging health issues quickly, and coordinate local responses. The CHW's primary tool is their offline-first native app on their PED, providing real-time alerts & task management.", 
-     "pages/1_chw_dashboard.py", "nav_chw_ops_main_final"),
+     "pages/1_chw_dashboard.py", "nav_chw_ops_main_final_v2"), # Ensure unique keys
     ("🏥 Clinic Operations & Environmental Safety View (Facility Node Level)", 
      "Simulates a dashboard for Clinic Managers at a Facility Node (Tier 2), providing insights into service efficiency, care quality, resource management, and environmental conditions.\n\n- **Focus (Tier 2):** Optimizing clinic workflows, ensuring quality patient care, managing supplies and testing backlogs, monitoring clinic environment for safety and infection control.\n- **Key Data Points:** Clinic performance KPIs (e.g., test TAT, patient throughput), supply stock forecasts, IoT sensor data summaries (CO2, PM2.5, occupancy), clinic-level epidemiological trends, flagged patient cases for review.\n- **Objective:** Enhance operational efficiency, support clinical decision-making, maintain resource availability, and ensure a safe clinic environment.", 
-     "pages/2_clinic_dashboard.py", "nav_clinic_ops_main_final"),
+     "pages/2_clinic_dashboard.py", "nav_clinic_ops_main_final_v2"),
     ("🗺️ District Health Strategic Overview (DHO at Facility/Regional Node Level)", 
      "Presents a strategic dashboard for District Health Officers (DHOs), typically accessed at a Facility Node (Tier 2) or a Regional/Cloud Node (Tier 3).\n\n- **Focus (Tier 2-3):** Population health insights, resource allocation across zones, monitoring environmental well-being, and planning targeted interventions.\n- **Key Data Points:** District-wide health KPIs, interactive maps for zonal comparisons (risk, disease burden, resources), trend analyses, intervention planning tools based on aggregated data.\n- **Objective:** Support evidence-based strategic planning, public health interventions, program monitoring, and policy development for the district.", 
-     "pages/3_district_dashboard.py", "nav_dho_main_final"),
+     "pages/3_district_dashboard.py", "nav_dho_main_final_v2"),
     ("📊 Population Health Analytics Deep Dive (Epidemiologist/Analyst View - Tier 3)", 
      "A view designed for detailed epidemiological and health systems analysis, typically used by analysts or program managers at a Regional/Cloud Node (Tier 3) with access to more comprehensive, aggregated datasets.\n\n- **Focus (Tier 3):** In-depth analysis of demographic patterns, SDOH impacts, clinical trends, health system performance, and equity across broader populations.\n- **Key Data Points:** Stratified disease burden, AI risk distributions by various factors, aggregated test positivity trends, comorbidity analysis, referral pathway performance, health equity metrics.\n- **Objective:** Provide robust analytical capabilities to understand population health dynamics, evaluate interventions, identify areas for research, and inform large-scale public health strategy.", 
-     "pages/4_population_dashboard.py", "nav_pop_analytics_main_final"),
+     "pages/4_population_dashboard.py", "nav_pop_analytics_main_final_v2"),
 ]
 
-cols_role_nav_display = st.columns(2)
-for i_role, (role_nav_title, role_nav_desc, role_nav_path, role_nav_key) in enumerate(role_view_nav_details_list):
-    with cols_role_nav_display[i_role % 2]:
+cols_role_nav_display_main = st.columns(2)
+for i_role_nav, (role_nav_title_main, role_nav_desc_main, role_nav_path_main, role_nav_key_main) in enumerate(role_view_navigation_details):
+    with cols_role_nav_display_main[i_role_nav % 2]:
         with st.container(border=True):
-            st.subheader(role_nav_title)
-            st.markdown(f"<small>{role_nav_desc}</small>", unsafe_allow_html=True)
-            # Cleaner button label by removing parenthetical role info
-            button_label_role = f"Explore {role_nav_title.split('(')[0].strip().replace('**','')}"
-            if st.button(button_label_role, key=role_nav_key, type="primary", use_container_width=True):
-                st.switch_page(role_nav_path)
-            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True) # Small bottom margin inside card
+            st.subheader(role_nav_title_main)
+            st.markdown(f"<small>{role_nav_desc_main}</small>", unsafe_allow_html=True)
+            button_label_role_main = f"Explore {role_nav_title_main.split('(')[0].strip().replace('**','')}"
+            if st.button(button_label_role_main, key=role_nav_key_main, type="primary", use_container_width=True):
+                st.switch_page(role_nav_path_main)
+            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
 st.divider()
-
 
 # --- Key Capabilities Reimagined Section (3x2 Layout) ---
 st.header(f"{app_config.APP_NAME} - Key Capabilities Reimagined")
-capabilities_reimagined_data_list = [
+capabilities_reimagined_data_list_main = [
     ("🛡️ Frontline Worker Safety & Support", "Real-time vitals/environmental monitoring, fatigue detection, and safety nudges on Personal Edge Devices (PEDs)."),
     ("🌍 Offline-First Edge AI", "On-device intelligence for alerts, prioritization, and guidance with zero reliance on continuous connectivity."),
     ("⚡ Actionable, Contextual Insights", "From raw data to clear, role-specific recommendations that integrate into field workflows."),
@@ -180,23 +177,23 @@ capabilities_reimagined_data_list = [
     ("🌱 Scalable & Interoperable Architecture", "Modular design from personal to national levels, with FHIR/HL7 compliance for system integration.")
 ]
 
-cap_row1_cols_display = st.columns(3)
-cap_row2_cols_display = st.columns(3)
+cap_row1_cols_display_main = st.columns(3)
+cap_row2_cols_display_main = st.columns(3)
 
-for i_cap_item, (cap_item_title, cap_item_desc) in enumerate(capabilities_reimagined_data_list):
-    target_col_for_capability = cap_row1_cols_display[i_cap_item] if i_cap_item < 3 else cap_row2_cols_display[i_cap_item-3]
-    with target_col_for_capability:
-        st.markdown(f"##### {cap_item_title}")
-        st.markdown(f"<small>{cap_item_desc}</small>", unsafe_allow_html=True)
-        # Add consistent bottom margin for items, especially if text length varies greatly
+for i_cap_item_main, (cap_item_title_main, cap_item_desc_main) in enumerate(capabilities_reimagined_data_list_main):
+    target_col_for_capability_main = cap_row1_cols_display_main[i_cap_item_main] if i_cap_item_main < 3 else cap_row2_cols_display_main[i_cap_item_main-3]
+    with target_col_for_capability_main:
+        st.markdown(f"##### {cap_item_title_main}")
+        st.markdown(f"<small>{cap_item_desc_main}</small>", unsafe_allow_html=True)
         st.markdown("<div style='margin-bottom: 1.2rem;'></div>", unsafe_allow_html=True) 
 st.divider()
 
 # --- Link to the Glossary page ---
 with st.expander("📜 **System Glossary** - Understand Sentinel's terminology and metrics.", expanded=False):
     st.markdown("Explore definitions for terms, metrics, and system components specific to the Sentinel Health Co-Pilot.")
-    if st.button("Go to Glossary", key="nav_glossary_from_app_home", type="secondary"): # Unique key
-        st.switch_page("pages/5_Glossary.py")
+    # Corrected path to lowercase 'g' for glossary
+    if st.button("Go to Glossary", key="nav_glossary_from_app_home_final", type="secondary"): 
+        st.switch_page("pages/5_glossary.py") # <--- CORRECTED PATH
 
 # --- Sidebar Content ---
 st.sidebar.header(f"{app_config.APP_NAME}") 
@@ -207,11 +204,12 @@ st.sidebar.info(
     "Frontline health worker interaction occurs on dedicated Personal Edge Devices (PEDs) with native applications."
 )
 st.sidebar.markdown("---")
-st.sidebar.page_link("pages/5_Glossary.py", label="📜 System Glossary", icon="📚") 
+# Corrected path to lowercase 'g' for glossary in sidebar link
+st.sidebar.page_link("pages/5_glossary.py", label="📜 System Glossary", icon="📚") # <--- CORRECTED PATH
 st.sidebar.divider()
 st.sidebar.markdown(f"**{app_config.ORGANIZATION_NAME}**")
 st.sidebar.markdown(f"Support: [{app_config.SUPPORT_CONTACT_INFO}](mailto:{app_config.SUPPORT_CONTACT_INFO})")
 st.sidebar.divider()
 st.sidebar.caption(app_config.APP_FOOTER_TEXT)
 
-logger.info(f"{app_config.APP_NAME} (v{app_config.APP_VERSION}) - System Overview page (app_home.py) loaded successfully with UI/UX enhancements including 3x2 capabilities layout.")
+logger.info(f"{app_config.APP_NAME} (v{app_config.APP_VERSION}) - System Overview page (app_home.py) loaded. Glossary link path corrected.")
