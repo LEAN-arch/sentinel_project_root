@@ -2,6 +2,7 @@
 # Extracts epidemiological signals from CHW daily data for Sentinel Health Co-Pilot.
 
 import pandas as pd
+import geopandas as gpd
 import numpy as np
 import logging
 from typing import Dict, Any, Optional, List
