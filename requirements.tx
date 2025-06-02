@@ -1,12 +1,10 @@
-# sentinel_project_root/requirements.txt
-# Python dependencies for the Sentinel Health Co-Pilot project (Tiers 2/3 & Development)
-
-streamlit==1.28.0
-pandas==2.0.3 # This is also a good comment
-geopandas==0.14.0
+streamlit
+pandas
 numpy
 plotly
-# plotly-express is part of the plotly package
+geopandas  # <<< MAKE SURE THIS IS HERE
+shapely    # <<< And this, as it's a core geopandas dependency
+# ... other libraries ...
 
 # Geospatial Libraries
 shapely  # Often a core dependency for geopandas
