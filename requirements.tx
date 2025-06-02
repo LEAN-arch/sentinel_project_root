@@ -4,19 +4,30 @@
 streamlit
 pandas
 numpy
-geopandas
-shapely
 plotly
 # plotly-express is part of the plotly package
 
-# Optional, but often useful with geopandas and for certain data sources:
-# fiona
-# pyproj
-# rtree
+# Geospatial Libraries
+geopandas
+shapely  # Often a core dependency for geopandas
+# fiona    # For reading/writing vector file formats (optional but common with geopandas)
+# pyproj   # For coordinate reference system transformations (optional but common)
+# rtree    # For spatial indexing (optional, improves performance for some GDF operations)
+
 
 # If PostgreSQL is used as a database backend (as hinted in app_config.py for Facility Node):
 # psycopg2-binary
 
-# Note: Specific versions should be pinned for production environments
-# e.g., pandas==2.0.3
-# Run `pip freeze > requirements.txt` in a working virtual environment to generate a pinned list.
+# --- Notes ---
+# 1. Geospatial libraries (geopandas, fiona, pyproj, shapely, rtree, gdal) often have 
+#    system-level C/C++ library dependencies (e.g., GDAL, GEOS, PROJ). 
+#    Ensure these are installed on your system *before* running pip install for these packages.
+#    Consult the documentation for each library for OS-specific installation instructions
+#    for these underlying dependencies.
+#    For example, on Debian/Ubuntu, you might need:
+#    sudo apt-get install libgdal-dev gdal-bin python3-gdal libproj-dev proj-data proj-bin libgeos-dev
+
+# 2. For production environments, it's highly recommended to pin package versions
+#    for reproducibility, e.g., pandas==2.0.3.
+#    You can generate a pinned list from a working virtual environment using:
+#    pip freeze > requirements.txt
