@@ -1,5 +1,6 @@
-streamlit
-pandas
+streamlit>=1.38.0
+geopandas>=0.14.0
+pandas>=2.0.0
 numpy
 plotly
 #geopandas  # <<< MAKE SURE THIS IS HERE
