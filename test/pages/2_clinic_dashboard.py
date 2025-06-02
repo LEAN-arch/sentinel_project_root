@@ -1,7 +1,7 @@
 # sentinel_project_root/test/pages/2_clinic_dashboard.py
 # Clinic Operations & Management Console for Sentinel Health Co-Pilot.
 
-import streamlit as st # Should be one of the first Streamlit imports
+import streamlit as st # Should be one ofthe first Streamlit imports
 import sys # For path manipulation
 import os # For path manipulation
 
@@ -26,6 +26,7 @@ try:
         # plot_donut_chart_web # Uncomment if a donut chart (e.g., for rejection reasons) is added
     )
     # Clinic Component specific data processors
+    # These relative imports require __init__.py in 'pages/' and 'clinic_components_sentinel/'
     from .clinic_components_sentinel.environmental_kpi_calculator import calculate_clinic_environmental_kpis
     from .clinic_components_sentinel.main_kpi_structurer import structure_main_clinic_kpis_data, structure_disease_specific_kpis_data
     from .clinic_components_sentinel.epi_data_calculator import calculate_clinic_epi_data
@@ -33,19 +34,20 @@ try:
     from .clinic_components_sentinel.patient_focus_data_preparer import prepare_clinic_patient_focus_data
     from .clinic_components_sentinel.supply_forecast_generator import prepare_clinic_supply_forecast_data
     from .clinic_components_sentinel.testing_insights_analyzer import prepare_clinic_testing_insights_data
-except ImportError as e_import_clinic:
-    error_msg_clinic = (
-        f"CRITICAL IMPORT ERROR in 2_clinic_dashboard.py: {e_import_clinic}. "
+except ImportError as e_import_clinic_dash: # Unique exception variable name
+    error_msg_clinic_dash = (
+        f"CRITICAL IMPORT ERROR in 2_clinic_dashboard.py: {e_import_clinic_dash}. "
         f"Current Python Path: {sys.path}. "
         f"Attempted to add to path: {_project_test_root_directory_clinic}. "
-        "Ensure all modules are correctly placed and `__init__.py` files exist in 'pages' and component subdirectories."
+        "Ensure all modules are correctly placed and `__init__.py` files exist in 'pages' and component subdirectories. "
+        "Also, ensure all external libraries (like geopandas, pandas, etc.) are installed in your environment (see requirements.txt)."
     )
-    print(error_msg_clinic, file=sys.stderr)
-    if 'st' in globals() and hasattr(st, 'error'):
-        st.error(error_msg_clinic)
+    print(error_msg_clinic_dash, file=sys.stderr)
+    if 'st' in globals() and hasattr(st, 'error'): # Check if Streamlit is available to show error
+        st.error(error_msg_clinic_dash)
         st.stop()
-    else:
-        raise ImportError(error_msg_clinic) from e_import_clinic
+    else: # If Streamlit isn't even loaded, re-raise to ensure script halts
+        raise ImportError(error_msg_clinic_dash) from e_import_clinic_dash
 
 import pandas as pd
 import logging
@@ -54,11 +56,16 @@ from typing import Optional, Dict, Any, Tuple
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title=f"Clinic Console - {app_config.APP_NAME}",
+    page_title=f"Clinic Console - {app_config.APP_NAME}", # app_config must be available
     layout="wide",
     initial_sidebar_state="expanded"
 )
-logger = logging.getLogger(__name__) # Page-specific logger
+logger = logging.getLogger(__name__)
+
+# ... (rest of the file 2_clinic_dashboard.py as refactored in File 59) ...
+# The content from "Data Loading for Clinic Console" onwards remains the same
+# as the previously provided refactored version (File 59). I will paste it
+# for completeness of this specific file output.
 
 # --- Data Loading for Clinic Console ---
 @st.cache_data(
@@ -68,15 +75,6 @@ logger = logging.getLogger(__name__) # Page-specific logger
 def get_clinic_console_data(
     selected_start_date: date, selected_end_date: date
 ) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame], Dict[str, Any], bool]:
-    """
-    Fetches, enriches (simulated), and prepares all data for the Clinic Console for the selected period.
-    Returns: 
-        full_historical_health_enriched_df, 
-        period_health_enriched_df, 
-        period_iot_df, 
-        period_clinic_summary_kpis_dict, 
-        iot_source_exists_flag
-    """
     func_log_prefix = "GetClinicConsoleData" 
     logger.info(f"({func_log_prefix}) Loading data for period: {selected_start_date.isoformat()} to {selected_end_date.isoformat()}")
     
@@ -95,10 +93,9 @@ def get_clinic_console_data(
         logger.warning(f"({func_log_prefix}) Raw health data for clinic is empty or invalid. AI enrichment skipped.")
         full_health_enriched = pd.DataFrame(columns=list(set(base_cols_health_clinic + ai_cols_expected_clinic)))
 
-    # Filter enriched health data for the selected period
     df_period_health_clinic = pd.DataFrame(columns=full_health_enriched.columns) 
     if not full_health_enriched.empty and 'encounter_date' in full_health_enriched.columns:
-        if not pd.api.types.is_datetime64_any_dtype(full_health_enriched['encounter_date']): # Defensive check
+        if not pd.api.types.is_datetime64_any_dtype(full_health_enriched['encounter_date']): 
             full_health_enriched['encounter_date'] = pd.to_datetime(full_health_enriched['encounter_date'], errors='coerce')
         
         df_period_health_clinic = full_health_enriched[
@@ -107,7 +104,7 @@ def get_clinic_console_data(
         ].copy()
     
     df_period_iot_clinic = pd.DataFrame() 
-    if iot_data_source_available and 'timestamp' in iot_df_raw.columns:
+    if iot_data_source_available and 'timestamp' in iot_df_raw.columns: 
         if not pd.api.types.is_datetime64_any_dtype(iot_df_raw['timestamp']):
              iot_df_raw['timestamp'] = pd.to_datetime(iot_df_raw['timestamp'], errors='coerce')
         df_period_iot_clinic = iot_df_raw[
@@ -120,7 +117,7 @@ def get_clinic_console_data(
         dict_period_summary_clinic = get_clinic_summary(df_period_health_clinic, source_context=f"{func_log_prefix}/PeriodSummary")
     else:
         logger.info(f"({func_log_prefix}) No health data in selected period for clinic summary KPIs.")
-        dict_period_summary_clinic = {"test_summary_details": {}} # Min structure for KPI structurers
+        dict_period_summary_clinic = {"test_summary_details": {}}
         
     return full_health_enriched, df_period_health_clinic, df_period_iot_clinic, dict_period_summary_clinic, iot_data_source_available
 
@@ -143,7 +140,7 @@ if default_start_dt_console_val < min_date_console_picker: default_start_dt_cons
 
 selected_start_date_clinic_console, selected_end_date_clinic_console = st.sidebar.date_input(
     "Select Date Range for Clinic Review:", value=[default_start_dt_console_val, default_end_dt_console_val],
-    min_value=min_date_console_picker, max_value=max_date_console_picker, key="clinic_console_date_range_picker_main" # Unique key
+    min_value=min_date_console_picker, max_value=max_date_console_picker, key="clinic_console_date_range_picker_main"
 )
 if selected_start_date_clinic_console > selected_end_date_clinic_console:
     st.sidebar.error("Console Date Range: Start date must be on or before end date.")
@@ -152,7 +149,7 @@ if selected_start_date_clinic_console > selected_end_date_clinic_console:
 current_period_str_for_display = f"{selected_start_date_clinic_console.strftime('%d %b %Y')} - {selected_end_date_clinic_console.strftime('%d %b %Y')}"
 
 # --- Load Data Based on Selections ---
-full_hist_health_data_clinic, \
+full_historical_health_df, \
 period_health_data_clinic_tabs, \
 period_iot_data_clinic_tabs, \
 period_clinic_summary_kpis_data, \
@@ -203,6 +200,14 @@ st.header("🛠️ Operational Areas Deep Dive")
 clinic_console_tab_names_list = ["📈 Local Epi", "🔬 Testing Insights", "💊 Supply Chain", "🧍 Patient Focus", "🌿 Environment Details"]
 tab_clinic_epi_view, tab_clinic_testing_view, tab_clinic_supply_view, tab_clinic_patient_view, tab_clinic_env_view = st.tabs(clinic_console_tab_names_list)
 
+# ... (The rest of the tab implementations remain the same as in File 59) ...
+# For brevity, I'm not re-pasting the identical tab content.
+# It includes calls to:
+# calculate_clinic_epi_data, prepare_clinic_testing_insights_data, 
+# prepare_clinic_supply_forecast_data, prepare_clinic_patient_focus_data,
+# prepare_clinic_environment_details_data
+# and renders their outputs using st.dataframe, st.plotly_chart, etc.
+
 with tab_clinic_epi_view:
     st.subheader(f"Local Epidemiological Intelligence ({current_period_str_for_display})")
     if not period_health_data_clinic_tabs.empty:
@@ -223,11 +228,10 @@ with tab_clinic_epi_view:
 
 with tab_clinic_testing_view:
     st.subheader(f"Testing & Diagnostics Performance ({current_period_str_for_display})")
-    # Placeholder for dynamic test group selection; for now, defaults to "All Critical".
-    selected_test_group_focus_val = "All Critical Tests Summary" 
+    selected_test_group_for_details = "All Critical Tests Summary" 
     
     dict_testing_insights_data = prepare_clinic_testing_insights_data(
-        period_health_data_clinic_tabs, period_clinic_summary_kpis_data, current_period_str_for_display, selected_test_group_focus_val
+        period_health_data_clinic_tabs, period_clinic_summary_kpis_data, current_period_str_for_display, selected_test_group_for_details
     )
     df_critical_tests_summary_table = dict_testing_insights_data.get("all_critical_tests_summary_table_df")
     if isinstance(df_critical_tests_summary_table, pd.DataFrame) and not df_critical_tests_summary_table.empty:
@@ -249,7 +253,7 @@ with tab_clinic_supply_view:
     use_ai_supply_forecast_val = st.checkbox("Use Advanced AI Supply Forecast (Simulated)", value=False, key="clinic_console_supply_ai_toggle_main")
     
     dict_supply_forecast_data = prepare_clinic_supply_forecast_data(
-        full_historical_health_df, # AI model might need longer history for consumption rate patterns
+        full_historical_health_df, 
         current_period_str_for_display,
         use_ai_forecast_model=use_ai_supply_forecast_val
     )
@@ -271,7 +275,7 @@ with tab_clinic_patient_view:
         
         df_patient_load_chart_data = dict_patient_focus_data.get("patient_load_by_key_condition_df")
         if isinstance(df_patient_load_chart_data, pd.DataFrame) and not df_patient_load_chart_data.empty:
-            st.markdown("###### **Patient Load by Key Condition (Aggregated Weekly):**") # Assuming weekly aggregation
+            st.markdown("###### **Patient Load by Key Condition (Aggregated Weekly):**") 
             st.plotly_chart(plot_bar_chart_web(
                 df_patient_load_chart_data, x_col='period_start_date', y_col='unique_patients_count', 
                 color_col='condition', title="Patient Load by Key Condition", barmode='stack', y_is_count=True, 
@@ -282,8 +286,8 @@ with tab_clinic_patient_view:
         if isinstance(df_flagged_patients_display, pd.DataFrame) and not df_flagged_patients_display.empty:
             st.markdown("###### **Flagged Patients for Clinical Review (Top by Priority):**")
             st.dataframe(df_flagged_patients_display.head(15), use_container_width=True, hide_index=True)
-        elif isinstance(df_flagged_patients_display, pd.DataFrame): # Empty but valid DataFrame means no flagged
-             st.info("No patients currently flagged for specific clinical review in this period.")
+        elif isinstance(df_flagged_patients_display, pd.DataFrame): 
+             st.info("No patients currently flagged for clinical review in this period.")
         
         if dict_patient_focus_data.get("processing_notes"): 
             for note_patient in dict_patient_focus_data["processing_notes"]: st.caption(f"Patient Focus Note: {note_patient}")
@@ -298,10 +302,10 @@ with tab_clinic_env_view:
         st.markdown("###### **Current Environmental Alerts (from Latest Readings in Period):**")
         found_non_acceptable_env_alert = False
         for alert_item_env_display in list_current_env_alerts_display:
-            if alert_item_env_display.get("level") != "ACCEPTABLE": # Only show non-acceptable status alerts
+            if alert_item_env_display.get("level") != "ACCEPTABLE": 
                  found_non_acceptable_env_alert = True
                  render_web_traffic_light_indicator(
-                     message=alert_item_env_display.get('message','Environmental issue identified.'), 
+                     message=alert_item_env_display.get('message','Environmental issue detected.'), 
                      status_level=alert_item_env_display.get('level','UNKNOWN'), 
                      details_text=alert_item_env_display.get('alert_type','Environmental Alert')
                  )
