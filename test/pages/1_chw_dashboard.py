@@ -47,6 +47,7 @@ except ImportError as e_import_chw:
         raise ImportError(error_msg_chw) from e_import_chw
 
 import pandas as pd
+import geopandas as gpd
 import logging
 from datetime import date, timedelta
 from typing import Optional, Dict, Any, Tuple, List
