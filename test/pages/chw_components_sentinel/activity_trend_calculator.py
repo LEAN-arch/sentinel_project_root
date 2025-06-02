@@ -2,6 +2,7 @@
 # Calculates CHW activity trend data for Sentinel Health Co-Pilot.
 
 import pandas as pd
+import geopandas as gpd
 import numpy as np # Often a companion to pandas
 import logging
 from typing import Dict, Any, Optional, Union # Union for return type hint
