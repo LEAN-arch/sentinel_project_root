@@ -1,9 +1,8 @@
 streamlit
-geopandas
 pandas
 numpy
 plotly
-geopandas  # <<< MAKE SURE THIS IS HERE
+#geopandas  # <<< MAKE SURE THIS IS HERE
 shapely    # <<< And this, as it's a core geopandas dependency
 # ... other libraries ...
 
