@@ -7,10 +7,9 @@ shapely    # <<< And this, as it's a core geopandas dependency
 # ... other libraries ...
 
 # Geospatial Libraries
-shapely  # Often a core dependency for geopandas
-# fiona    # For reading/writing vector file formats (optional but common with geopandas)
-# pyproj   # For coordinate reference system transformations (optional but common)
-# rtree    # For spatial indexing (optional, improves performance for some GDF operations)
+fiona    # For reading/writing vector file formats (optional but common with geopandas)
+pyproj   # For coordinate reference system transformations (optional but common)
+rtree    # For spatial indexing (optional, improves performance for some GDF operations)
 
 
 # If PostgreSQL is used as a database backend (as hinted in app_config.py for Facility Node):
