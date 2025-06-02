@@ -1,14 +1,14 @@
 # sentinel_project_root/requirements.txt
 # Python dependencies for the Sentinel Health Co-Pilot project (Tiers 2/3 & Development)
 
-streamlit
-pandas
+streamlit==1.28.0
+pandas==2.0.3 # This is also a good comment
+geopandas==0.14.0
 numpy
 plotly
 # plotly-express is part of the plotly package
 
 # Geospatial Libraries
-geopandas
 shapely  # Often a core dependency for geopandas
 # fiona    # For reading/writing vector file formats (optional but common with geopandas)
 # pyproj   # For coordinate reference system transformations (optional but common)
