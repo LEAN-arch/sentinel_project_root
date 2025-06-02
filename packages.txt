@@ -1,4 +1,6 @@
 build-essential
+pandas
+geopandas
 libgdal-dev
 libproj-dev
 libgeos-dev
