@@ -2,6 +2,7 @@
 # Processes CHW data to generate a prioritized list of tasks for Sentinel.
 
 import pandas as pd
+import geopandas as gpd
 import numpy as np
 import logging
 from typing import List, Dict, Any, Optional
