@@ -2,3 +2,7 @@ build-essential
 libgdal-dev
 libproj-dev
 libgeos-dev
+gdal-bin
+libspatialindex-dev
+python3-dev
+pkg-config
