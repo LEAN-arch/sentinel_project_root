@@ -2,7 +2,6 @@
 # Calculates key summary metrics for a CHW's daily activity for Sentinel.
 
 import pandas as pd
-import geopandas as gpd
 import numpy as np
 import logging
 from typing import Dict, Any, Optional
