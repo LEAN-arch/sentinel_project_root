@@ -5,204 +5,200 @@ import pandas as pd
 import numpy as np
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime, date # For date handling
+from datetime import date
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
 
 # Standardized import block
 try:
     from config import app_config
-except ImportError:
-    import sys
-    import os
-    # Assumes this file is in sentinel_project_root/test/pages/chw_components_sentinel/
-    current_script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_test_root_dir = os.path.abspath(os.path.join(current_script_dir, os.pardir, os.pardir))
-    if project_test_root_dir not in sys.path:
-        sys.path.insert(0, project_test_root_dir)
-    from config import app_config
-
-logger = logging.getLogger(__name__)
+except ImportError as e:
+    logger.error(f"Import error: {e}. Ensure config.py is in test/ with __init__.py.")
+    raise
 
 def generate_chw_prioritized_tasks(
-    source_patient_data_df: Optional[pd.DataFrame], # Dataframe containing potential task triggers
-    for_date: Any, # Typically datetime.date or compatible string, for context and default due dates
-    chw_id_context: Optional[str] = "TeamDefaultCHW", # For assigning task if not inherent in data
-    zone_context_str: Optional[str] = "GeneralArea",   # General zone context if not in record
-    max_tasks_to_return_for_summary: int = 20 # Limit for reporting to supervisor
+    source_patient_data_df: Optional[pd.DataFrame],
+    for_date: Any,
+    chw_id_context: Optional[str] = "TeamDefaultCHW",
+    zone_context_str: Optional[str] = "GeneralArea",
+    max_tasks_to_return_for_summary: int = 20
 ) -> List[Dict[str, Any]]:
     """
-    Generates a prioritized list of CHW tasks based on input patient data (alerts, AI scores).
+    Generates a prioritized list of CHW tasks based on input patient data.
 
     Args:
         source_patient_data_df: DataFrame with patient data.
         for_date: The date for which these tasks are relevant.
         chw_id_context: Optional CHW ID for task assignment.
         zone_context_str: General zone context.
-        max_tasks_to_return_for_summary: Max tasks if this list is for a summary view.
+        max_tasks_to_return_for_summary: Max tasks for summary view.
 
     Returns:
         List of task dictionaries, sorted by priority.
+
+    Raises:
+        ValueError: If input data or date is invalid.
     """
-    module_log_prefix = "CHWTaskProcessor" # Consistent prefix
-    logger.info(f"({module_log_prefix}) Generating CHW tasks for date: {str(for_date)}, CHW: {chw_id_context}, Zone: {zone_context_str}")
+    module_log_prefix = "CHWTaskProcessor"
+
+    # Validate app_config attributes
+    required_configs = [
+        'ALERT_SPO2_CRITICAL_LOW_PCT', 'ALERT_BODY_TEMP_HIGH_FEVER_C',
+        'FATIGUE_INDEX_HIGH_THRESHOLD', 'KEY_CONDITIONS_FOR_ACTION'
+    ]
+    for attr in required_configs:
+        if not hasattr(app_config, attr):
+            logger.error(f"({module_log_prefix}) Missing config: {attr}")
+            raise ValueError(f"Missing required configuration: {attr}")
+
+    # Standardize for_date
+    try:
+        task_processing_date = for_date if isinstance(for_date, date) else pd.to_datetime(for_date, errors='coerce').date()
+        if not task_processing_date:
+            raise ValueError
+    except (ValueError, TypeError):
+        logger.warning(f"({module_log_prefix}) Invalid for_date: {for_date}. Using today.")
+        task_processing_date = date.today()
+
+    logger.info(f"({module_log_prefix}) Generating CHW tasks for date: {task_processing_date}, CHW: {chw_id_context}, Zone: {zone_context_str}")
 
     if not isinstance(source_patient_data_df, pd.DataFrame) or source_patient_data_df.empty:
-        logger.info(f"({module_log_prefix}) No input patient data provided. No tasks generated.")
-        return []
+        logger.warning(f"({module_log_prefix}) No valid patient data provided.")
+        raise ValueError("No patient data available for task generation.")
 
-    tasks_buffer: List[Dict[str, Any]] = [] # Renamed from generated_tasks_list
-    df_task_src = source_patient_data_df.copy() # Renamed from df_task_input_source
-
-    # Define expected columns, their defaults, and types for robust task generation
-    task_cols_config = { # Renamed from task_gen_cols_defaults
+    # Define expected columns
+    task_cols_config = {
         'patient_id': {"default": "UnknownPID_TaskProc", "type": str},
         'encounter_date': {"default": pd.NaT, "type": "datetime"},
         'zone_id': {"default": zone_context_str, "type": str},
         'condition': {"default": "N/A_TaskProc", "type": str},
-        'age': {"default": np.nan, "type": float},
-        'chw_id': {"default": chw_id_context, "type": str}, # Assign CHW context if not per record
-        'ai_risk_score': {"default": np.nan, "type": float},
-        'ai_followup_priority_score': {"default": np.nan, "type": float},
-        'alert_reason_primary': {"default": "", "type": str}, # Assumes this comes from alert_generator.py
-        'min_spo2_pct': {"default": np.nan, "type": float},
-        'vital_signs_temperature_celsius': {"default": np.nan, "type": float},
-        'max_skin_temp_celsius': {"default": np.nan, "type": float},
-        'fall_detected_today': {"default": 0, "type": int},
+        'age': {"default": np.nan, "type": "float"},
+        'chw_id': {"default": chw_id_context, "type": str},
+        'ai_risk_score': {"default": np.nan, "type": "float"},
+        'ai_followup_priority_score': {"default": np.nan, "type": "float"},
+        'alert_reason_primary': {"default": "", "type": str},
+        'min_spo2_pct': {"default": np.nan, "type": "float"},
+        'vital_signs_temperature_celsius': {"default": np.nan, "type": "float"},
+        'max_skin_temp_celsius': {"default": np.nan, "type": "float"},
+        'fall_detected_today': {"default": 0, "type": "int"},
         'referral_status': {"default": "Unknown_TaskProc", "type": str},
         'medication_adherence_self_report': {"default": "Unknown_TaskProc", "type": str}
     }
-    common_na_strings_task_proc = ['', 'nan', 'None', 'N/A', '#N/A', 'np.nan', 'NaT', '<NA>', 'null']
+    common_na_strings = ['', 'nan', 'None', 'N/A', '#N/A', 'np.nan', 'NaT', '<NA>', 'null']
 
-    for col, config_val in task_cols_config.items():
+    # Prepare DataFrame
+    required_cols = list(task_cols_config.keys())
+    df_task_src = source_patient_data_df[required_cols].copy() if all(col in source_patient_data_df.columns for col in required_cols) else source_patient_data_df.copy()
+
+    for col, config in task_cols_config.items():
         if col not in df_task_src.columns:
-            df_task_src[col] = config_val["default"]
-        
-        if config_val["type"] == "datetime":
+            df_task_src[col] = config["default"]
+        if config["type"] == "datetime":
             df_task_src[col] = pd.to_datetime(df_task_src[col], errors='coerce')
-        elif config_val["type"] == float:
-            df_task_src[col] = pd.to_numeric(df_task_src[col], errors='coerce').fillna(config_val["default"])
-        elif config_val["type"] == int: # For flags
-            df_task_src[col] = pd.to_numeric(df_task_src[col], errors='coerce').fillna(config_val["default"]).astype(int)
-        elif config_val["type"] == str:
-            df_task_src[col] = df_task_src[col].astype(str).str.strip().replace(common_na_strings_task_proc, config_val["default"], regex=False)
-            df_task_src[col] = df_task_src[col].fillna(config_val["default"])
+        elif config["type"] == "float":
+            df_task_src[col] = pd.to_numeric(df_task_src[col], errors='coerce').fillna(config["default"])
+        elif config["type"] == "int":
+            df_task_src[col] = pd.to_numeric(df_task_src[col], errors='coerce').fillna(config["default"]).astype(int)
+        elif config["type"] == str:
+            df_task_src[col] = df_task_src[col].astype(str).replace(common_na_strings, config["default"])
 
+    # Select temperature column
+    temp_col_name = 'vital_signs_temperature_celsius' if 'vital_signs_temperature_celsius' in df_task_src.columns else \
+                    'max_skin_temp_celsius' if 'max_skin_temp_celsius' in df_task_src.columns else None
 
-    # Sort input data to process higher risk/priority patients first (influences de-duplication outcome)
-    sort_columns_task = []
-    if 'ai_followup_priority_score' in df_task_src.columns and df_task_src['ai_followup_priority_score'].notna().any():
-        sort_columns_task.append('ai_followup_priority_score')
-    if 'ai_risk_score' in df_task_src.columns and df_task_src['ai_risk_score'].notna().any():
-        if not sort_columns_task or sort_columns_task[-1] != 'ai_risk_score': # Avoid duplicate if same as primary
-            sort_columns_task.append('ai_risk_score')
-            
-    if sort_columns_task:
-        df_sorted_for_task_gen = df_task_src.sort_values(by=sort_columns_task, ascending=[False]*len(sort_columns_task))
-    else:
-        df_sorted_for_task_gen = df_task_src
-        logger.debug(f"({module_log_prefix}) No AI priority/risk scores available for initial task input sorting.")
-    
-    temp_col_for_task_context = next((tc for tc in ['vital_signs_temperature_celsius', 'max_skin_temp_celsius'] 
-                                      if tc in df_sorted_for_task_gen.columns and df_sorted_for_task_gen[tc].notna().any()), None)
+    # Sort DataFrame
+    sort_columns = ['ai_followup_priority_score', 'ai_risk_score']
+    sort_columns = [col for col in sort_columns if col in df_task_src.columns and df_task_src[col].notna().any()]
+    df_filtered = df_task_src.sort_values(by=sort_columns, ascending=[False]*len(sort_columns)) if sort_columns else df_task_src
 
-    # Standardize `for_date` to a datetime.date object for consistent due date calculation
-    try:
-        task_processing_date = pd.to_datetime(for_date, errors='raise').date()
-    except Exception:
-        logger.error(f"({module_log_prefix}) Invalid 'for_date' for task processing: {for_date}. Defaulting to today.")
-        task_processing_date = date.today()
+    # Generate tasks
+    tasks = []
+    for _, row in df_filtered.iterrows():
+        patient_id = str(row['patient_id'])
+        encounter_date = row['encounter_date'].date() if pd.notna(row['encounter_date']) else task_processing_date
+        task_date_str = encounter_date.strftime('%Y%m%d')
+        base_priority = float(row['ai_followup_priority_score']) if pd.notna(row['ai_followup_priority_score']) else \
+                        float(row['ai_risk_score']) if pd.notna(row['ai_risk_score']) else 30.0
+        alert_reason = str(row['alert_reason_primary']).lower()
 
-    # --- Task Generation Rules Iteration ---
-    for _, record_data in df_sorted_for_task_gen.iterrows():
-        patient_id_val = str(record_data.get('patient_id', task_cols_config['patient_id']['default']))
-        
-        # Use encounter_date for task if available and valid, otherwise use the general task_processing_date
-        record_encounter_date = record_data.get('encounter_date')
-        task_date_for_record = record_encounter_date.date() if pd.notna(record_encounter_date) else task_processing_date
-        task_date_str_for_id = task_date_for_record.strftime('%Y%m%d') # For unique task ID
+        # Default task
+        task_desc = f"Routine Checkup/Follow-up for {patient_id}"
+        task_type = "TASK_VISIT_ROUTINE"
+        priority = base_priority
 
-        # Base priority: use ai_followup_priority_score if available, else ai_risk_score, else a low default
-        base_priority_task = 30.0 # Low default priority
-        if pd.notna(record_data.get('ai_followup_priority_score')):
-            base_priority_task = float(record_data.get('ai_followup_priority_score', base_priority_task))
-        elif pd.notna(record_data.get('ai_risk_score')):
-            base_priority_task = float(record_data.get('ai_risk_score', base_priority_task))
+        # Task rules
+        if "critical low spo2" in alert_reason or (pd.notna(row['min_spo2_pct']) and row['min_spo2_pct'] < app_config.ALERT_SPO2_CRITICAL_LOW_PCT):
+            task_desc = f"URGENT: Assess Critical Low SpO2 for {patient_id}"
+            task_type = "TASK_VISIT_VITALS_URGENT"
+            priority = max(base_priority, 98.0)
+        elif "high fever" in alert_reason or (temp_col_name and pd.notna(row[temp_col_name]) and row[temp_col_name] >= app_config.ALERT_BODY_TEMP_HIGH_FEVER_C):
+            task_desc = f"URGENT: Assess High Fever for {patient_id}"
+            task_type = "TASK_VISIT_VITALS_URGENT"
+            priority = max(base_priority, 95.0)
+        elif "fall detected" in alert_reason or (pd.notna(row['fall_detected_today']) and row['fall_detected_today'] > 0):
+            task_desc = f"Assess Patient {patient_id} After Fall Detection"
+            task_type = "TASK_VISIT_FALL_ASSESS"
+            priority = max(base_priority, 92.0)
+        elif "pending critical referral" in alert_reason or (
+            row['referral_status'].lower() == 'pending' and 
+            any(ck.lower() in str(row['condition']).lower() for ck in app_config.KEY_CONDITIONS_FOR_ACTION)
+        ):
+            task_desc = f"Follow-up: Critical Referral for {patient_id} ({row['condition']})"
+            task_type = "TASK_VISIT_REFERRAL_TRACK"
+            priority = max(base_priority, 88.0)
+        elif "high ai follow-up prio" in alert_reason or base_priority >= app_config.FATIGUE_INDEX_HIGH_THRESHOLD:
+            task_desc = f"Priority Follow-up (High AI Score) for {patient_id}"
+            task_type = "TASK_VISIT_FOLLOWUP_AI"
+        elif row['medication_adherence_self_report'].lower() == 'poor':
+            task_desc = f"Support: Medication Adherence for {patient_id}"
+            task_type = "TASK_VISIT_ADHERENCE_SUPPORT"
+            priority = max(base_priority, 75.0)
 
-        # Default task, can be overridden by specific rules below
-        generated_task_description = f"Routine Checkup/Follow-up for {patient_id_val}"
-        generated_task_type_code = "TASK_VISIT_ROUTINE"
-        generated_task_priority = base_priority_task
-        alert_reason_from_source = str(record_data.get('alert_reason_primary', '')).lower() # From alert_generator output
+        # Build context
+        context_parts = []
+        if row['condition'].lower() not in ['unknown', 'n/a', 'n/a_taskproc']:
+            context_parts.append(f"Cond: {row['condition']}")
+        if pd.notna(row['age']):
+            context_parts.append(f"Age: {row['age']:.0f}")
+        if pd.notna(row['min_spo2_pct']):
+            context_parts.append(f"Last SpO2: {row['min_spo2_pct']:.0f}%")
+        if temp_col_name and pd.notna(row[temp_col_name]):
+            context_parts.append(f"Last Temp: {row[temp_col_name]:.1f}°C")
+        if pd.notna(row['ai_risk_score']):
+            context_parts.append(f"AI Risk: {row['ai_risk_score']:.0f}")
 
-        # Apply rules to potentially override default task and boost priority
-        if "critical low spo2" in alert_reason_from_source or \
-           (pd.notna(record_data.get('min_spo2_pct')) and record_data.get('min_spo2_pct') < app_config.ALERT_SPO2_CRITICAL_LOW_PCT):
-            generated_task_description = f"URGENT: Assess Critical Low SpO2 for {patient_id_val}"
-            generated_task_type_code = "TASK_VISIT_VITALS_URGENT"
-            generated_task_priority = max(base_priority_task, 98.0) # High priority
-        elif "high fever" in alert_reason_from_source or \
-             (temp_col_for_task_context and pd.notna(record_data.get(temp_col_for_task_context)) and \
-              record_data.get(temp_col_for_task_context) >= app_config.ALERT_BODY_TEMP_HIGH_FEVER_C):
-            generated_task_description = f"URGENT: Assess High Fever for {patient_id_val}"
-            generated_task_type_code = "TASK_VISIT_VITALS_URGENT"
-            generated_task_priority = max(base_priority_task, 95.0)
-        elif "fall detected" in alert_reason_from_source or \
-             (pd.notna(record_data.get('fall_detected_today')) and int(record_data.get('fall_detected_today',0)) > 0):
-            generated_task_description = f"Assess Patient {patient_id_val} After Fall Detection"
-            generated_task_type_code = "TASK_VISIT_FALL_ASSESS"
-            generated_task_priority = max(base_priority_task, 92.0)
-        elif "pending critical referral" in alert_reason_from_source or \
-             (str(record_data.get('referral_status', '')).lower() == 'pending' and \
-              any(ck.lower() in str(record_data.get('condition','')).lower() for ck in app_config.KEY_CONDITIONS_FOR_ACTION) ):
-            generated_task_description = f"Follow-up: Critical Referral for {patient_id_val} ({record_data.get('condition', 'N/A')})"
-            generated_task_type_code = "TASK_VISIT_REFERRAL_TRACK"
-            generated_task_priority = max(base_priority_task, 88.0)
-        elif "high ai follow-up prio" in alert_reason_from_source or base_priority_task >= app_config.FATIGUE_INDEX_HIGH_THRESHOLD :
-            generated_task_description = f"Priority Follow-up (High AI Score) for {patient_id_val}"
-            generated_task_type_code = "TASK_VISIT_FOLLOWUP_AI"
-            # Priority is already set by base_priority_task if it's high
-        elif str(record_data.get('medication_adherence_self_report','Unknown')).lower() == 'poor':
-            generated_task_description = f"Support: Medication Adherence for {patient_id_val}" # Changed from Counseling for broader scope
-            generated_task_type_code = "TASK_VISIT_ADHERENCE_SUPPORT"
-            generated_task_priority = max(base_priority_task, 75.0)
-        
-        # Build context string for the task display
-        task_context_info_parts = []
-        if pd.notna(record_data.get('condition')) and str(record_data.get('condition','N/A_TaskProc')).lower() not in ['unknown', 'n/a', 'n/a_taskproc', 'unknowncondition_taskproc']:
-            task_context_info_parts.append(f"Cond: {record_data.get('condition')}")
-        if pd.notna(record_data.get('age')): task_context_info_parts.append(f"Age: {record_data.get('age'):.0f}")
-        if pd.notna(record_data.get('min_spo2_pct')): task_context_info_parts.append(f"Last SpO2: {record_data.get('min_spo2_pct'):.0f}%")
-        if temp_col_for_task_context and pd.notna(record_data.get(temp_col_for_task_context)): task_context_info_parts.append(f"Last Temp: {record_data.get(temp_col_for_task_context):.1f}°C")
-        if pd.notna(record_data.get('ai_risk_score')): task_context_info_parts.append(f"AI Risk: {record_data.get('ai_risk_score'):.0f}")
-
-        # Generate a somewhat unique task ID
-        task_id_final_val = f"TSK_{patient_id_val}_{task_date_str_for_id}_{generated_task_type_code.split('_')[-1]}"
-
-        task_item_object = {
-            "task_id": task_id_final_val,
-            "patient_id": patient_id_val,
-            "assigned_chw_id": str(record_data.get('chw_id', chw_id_context)), # Use record's CHW ID if available
-            "zone_id": str(record_data.get('zone_id', zone_context_str)),     # Use record's Zone ID if available
-            "task_type_code": generated_task_type_code,
-            "task_description": generated_task_description,
-            "priority_score": round(generated_task_priority, 1),
-            "due_date": task_date_for_record.isoformat(), # Task due on the day of event/processing
-            "status": "PENDING", # Default status for newly generated tasks
-            "key_patient_context": " | ".join(task_context_info_parts) if task_context_info_parts else "General Check Required",
-            "alert_source_info": alert_reason_from_source if alert_reason_from_source else ("AI Score Based" if base_priority_task > 40 else "Routine Schedule") # More descriptive source
+        task = {
+            "task_id": f"TSK_{patient_id}_{task_date_str}_{task_type.split('_')[-1]}_{len(tasks)}",
+            "patient_id": patient_id,
+            "assigned_chw_id": str(row['chw_id']),
+            "zone_id": str(row['zone_id']),
+            "task_type_code": task_type,
+            "task_description": task_desc,
+            "priority_score": round(priority, 1),
+            "due_date": encounter_date.isoformat(),
+            "status": "PENDING",
+            "key_patient_context": " | ".join(context_parts) if context_parts else "General Check Required",
+            "alert_source_info": alert_reason if alert_reason else ("AI Score Based" if base_priority > 40 else "Routine Schedule")
         }
-        tasks_buffer.append(task_item_object)
+        tasks.append(task)
 
-    # Final sort and de-duplication of tasks for a patient for the day
-    if tasks_buffer:
-        final_tasks_df_for_output = pd.DataFrame(tasks_buffer)
-        final_tasks_df_for_output.sort_values(by="priority_score", ascending=False, inplace=True)
+    # Deduplicate tasks
+    if tasks:
+        tasks_dict = {}
+        for task in tasks:
+            key = (task['patient_id'], task['due_date'])
+            if key not in tasks_dict or task['priority_score'] > tasks_dict[key]['priority_score']:
+                tasks_dict[key] = task
         
-        # De-duplicate: Keep the single highest priority task per patient per due_date (day of relevance)
-        # This ensures that if multiple rules generate tasks for the same patient on the same day, only the most pressing one is kept.
-        final_tasks_df_for_output.drop_duplicates(subset=["patient_id", "due_date"], keep="first", inplace=True)
-        
-        logger.info(f"({module_log_prefix}) Generated {len(final_tasks_df_for_output)} unique prioritized tasks for the period/context.")
-        return final_tasks_df_for_output.head(max_tasks_to_return_for_summary).to_dict(orient='records')
-
-    logger.info(f"({module_log_prefix}) No tasks generated from the provided data after processing rules.")
+        final_tasks = sorted(tasks_dict.values(), key=lambda x: x['priority_score'], reverse=True)
+        logger.info(f"({module_log_prefix}) Generated {len(final_tasks)} unique prioritized tasks.")
+        return final_tasks[:max_tasks_to_return_for_summary]
+    
+    logger.info(f"({module_log_prefix}) No tasks generated.")
     return []
