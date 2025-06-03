@@ -1,8 +1,8 @@
 streamlit>=1.38.0
-geopandas>=0.14.0
 pandas>=2.0.0
+geopandas>=0.14.0
 numpy
-plotly
+plotly>=5.0.0
 #geopandas  # <<< MAKE SURE THIS IS HERE
 shapely    # <<< And this, as it's a core geopandas dependency
 # ... other libraries ...
